@@ -1,20 +1,27 @@
 # Settings
 settings:
   interval: 5 # in seconds
-  log_path: logs/test.log
+  log_path: logs/test.log # path to logfile
 
 # ClickHouse credentials
 clickhouse:
- db: default
- table: access_logs
- host: 127.0.0.1
+ db: metrics
+ table: nginx
+ host: localhost
  port: 8123
  credentials:
   user: default
   password:
  columns:
-  remoteAddr: remote_addr
-  remoteUser: remote_user
+   RemoteAddr: remote_addr
+   RemoteUser: remote_user
+   TimeLocal: time_local
+   Request: request
+   Status: status
+   BytesSent: bytes_sent
+   HttpReferer: http_referer
+   HttpUserAgent: http_user_agent
+
 # NGINX
 nginx:
   log_type: main

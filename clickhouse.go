@@ -17,10 +17,14 @@ func save(config *Config, logs []gonx.Entry) error {
 		return err
 	}
 
+	columns := getColumns(config.ClickHouse.Columns)
+
+	rows := buildRows(columns, config.ClickHouse.Columns, logs)
+
 	query, err := clickhouse.BuildMultiInsert(
 		config.ClickHouse.Db + "." + config.ClickHouse.Table,
-		getColumns(config.ClickHouse.Columns),
-		buildRows(config.ClickHouse.Columns, logs),
+		columns,
+		rows,
 	)
 
 	if err != nil {
@@ -43,7 +47,10 @@ func getColumns(columns map[string]string) []string {
 	return string_columns
 }
 
-func buildRows(columns map[string]string, data []gonx.Entry) clickhouse.Rows {
+var nginxTimeLayout = "02/Jan/2006:15:04:05 -0700"
+var chTimeLayout = "2006-01-02 15:04:05"
+
+func buildRows(column_keys []string, columns map[string]string, data []gonx.Entry) clickhouse.Rows {
 
 	rows := []clickhouse.Row{}
 
@@ -51,11 +58,11 @@ func buildRows(columns map[string]string, data []gonx.Entry) clickhouse.Rows {
 
 		row := clickhouse.Row{}
 
-		for _, key := range columns {
+		for _, column := range column_keys {
 
-			value, _ := log_entry.Field(key)
+			value, _ := log_entry.Field(columns[column])
 
-			row = append(row, value)
+			row = append(row, parseField(columns[column], value))
 		}
 
 		rows = append(rows, row)
@@ -72,7 +79,7 @@ func getStorage(config *Config) (*clickhouse.Conn, error) {
 
 	chttp := clickhouse.NewHttpTransport()
 
-	conn := clickhouse.NewConn(config.ClickHouse.Host, chttp)
+	conn := clickhouse.NewConn(config.ClickHouse.Host + ":" + config.ClickHouse.Port, chttp)
 
 	params := url.Values{}
 

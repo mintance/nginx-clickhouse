@@ -23,7 +23,7 @@ func main() {
 	nginxParser, err := getParser(config)
 
 	if err != nil {
-		logrus.Fatal("Can`t parse nginx log format.", err)
+		logrus.Fatal("Can`t parse nginx log format: ", err)
 	}
 
 	logs = []string{}
@@ -31,7 +31,7 @@ func main() {
 	t, err := tail.TailFile(config.Settings.LogPath, tail.Config{ Follow: true, ReOpen: true, MustExist: true })
 
 	if err != nil {
-		logrus.Fatal("Can`t tail logfile.", err)
+		logrus.Fatal("Can`t tail logfile: ", err)
 	}
 
 	logrus.Info("Opening logfile: " + config.Settings.LogPath)
@@ -50,8 +50,11 @@ func main() {
 				err := save(config, parseLogs(nginxParser, logs))
 
 				if err != nil {
-					logrus.Error("Can`t save logs.", err)
+					logrus.Error("Can`t save logs: ", err)
 				} else {
+
+					logrus.Info("Saved ", len(logs), " new logs.")
+
 					logs = []string{}
 				}
 
