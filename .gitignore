@@ -4,3 +4,6 @@ glide.lock
 
 # Idea
 .idea/
+
+# logs
+logs/*
