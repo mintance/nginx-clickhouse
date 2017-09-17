@@ -1,0 +1,6 @@
+# Glide packages
+vendor/
+glide.lock
+
+# Idea
+.idea/

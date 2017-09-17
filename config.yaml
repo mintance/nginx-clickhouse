@@ -1,0 +1,5 @@
+# ClickHouse credentials
+ db: default
+ table: access_logs
+ columns:
+  Host: column
