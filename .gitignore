@@ -6,4 +6,4 @@ glide.lock
 .idea/
 
 # logs
-logs/*
+logs/*.log
