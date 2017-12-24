@@ -2,33 +2,31 @@
 
 Simple nginx logs parser &amp; transporter to ClickHouse database.
 
-#### How to build
+### How to build
 
-##### 1. Install helpers
+#### 1. Install helpers
 
 `make install-helpers`
 
-##### 2. Install dependencies
+#### 2. Install dependencies
 
 `make dependencies`
 
-##### 3. Build docker image
-
-In this step you can add `config.yml` file to Docker image.
+#### 3. Build docker image
 
 `make docker-build`
 
-#### How to run
+### How to run
 
-For this example, we include `/var/log/nginx` directory, where we store our logs, and config directory where we store `config.yml` file.
+For this example, we include `/var/log/nginx` directory, where we store our logs, and `config` directory where we store `config.yml` file.
 
 `docker run --rm --net=host --name nginx-streaming -v /var/log/nginx:/logs -v config:/config -d nginx-clickhouse`
 
-#### How this works?
+### How this works?
 
 Here are described full setting-up example.
 
-##### NGINX log format description
+#### NGINX log format description
 
 In nginx, there are: [nginx_http_log_module](http://nginx.org/en/docs/http/ngx_http_log_module.html) that writes request logs in the specified format.
 
@@ -43,7 +41,7 @@ http {
 }
 ```
 
-After defining this, we can use in our site config `/etc/nginx/sites-enabled/my-site.conf` inside server section:
+After defining this, we can use it in our site config `/etc/nginx/sites-enabled/my-site.conf` inside server section:
 
 ```
 server {
@@ -55,7 +53,9 @@ server {
 
 Now all what we need, is to create `config.yml` file where we describe our log format, log file path, and ClickHouse credentials. We can also use environment variables for this.
 
-##### ClickHouse table schema example
+#### ClickHouse table schema example
+
+This is table schema for our example.
 
 ```
 CREATE TABLE metrics.nginx (
@@ -79,9 +79,9 @@ CREATE TABLE metrics.nginx (
 ) ENGINE = MergeTree(Date, (Status, Date), 8192)
 ```
 
-##### Config file description
+#### Config file description
 
-###### 1. Log path & flushing interval
+##### 1. Log path & flushing interval
 
 ```
 settings:
@@ -89,7 +89,7 @@ settings:
   log_path: /var/log/nginx/my-site-access.log # path to logfile
 ```
 
-###### 2. ClickHouse credentials and table schema
+##### 2. ClickHouse credentials and table schema
 
 ```
 clickhouse:
@@ -116,7 +116,9 @@ columns:
     HttpUserAgent: http_user_agent
 ```
 
-###### 3. NGINX log type & format
+##### 3. NGINX log type & format
+
+In `log_format` - we just copy format from nginx.conf
 
 ```
 nginx:
@@ -124,7 +126,7 @@ nginx:
   log_format: $remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"
 ```
 
-###### 4. Full config file example
+##### 4. Full config file example
 
 ```
 settings:
