@@ -1,15 +1,17 @@
-package main
+package clickhouse
 
 import (
 	"github.com/mintance/go-clickhouse"
+	"github.com/mintance/nginx-clickhouse/config"
+	"github.com/mintance/nginx-clickhouse/nginx"
 	"github.com/satyrius/gonx"
 	"net/url"
 	"reflect"
 )
 
-var clickhouse_storage *clickhouse.Conn
+var clickHouseStorage *clickhouse.Conn
 
-func save(config *Config, logs []gonx.Entry) error {
+func Save(config *config.Config, logs []gonx.Entry) error {
 
 	storage, err := getStorage(config)
 
@@ -37,32 +39,25 @@ func save(config *Config, logs []gonx.Entry) error {
 func getColumns(columns map[string]string) []string {
 
 	keys := reflect.ValueOf(columns).MapKeys()
-
-	string_columns := make([]string, len(keys))
+	stringColumns := make([]string, len(keys))
 
 	for i := 0; i < len(keys); i++ {
-		string_columns[i] = keys[i].String()
+		stringColumns[i] = keys[i].String()
 	}
 
-	return string_columns
+	return stringColumns
 }
 
-var nginxTimeLayout = "02/Jan/2006:15:04:05 -0700"
-var chTimeLayout = "2006-01-02 15:04:05"
+func buildRows(keys []string, columns map[string]string, data []gonx.Entry) clickhouse.Rows {
 
-func buildRows(column_keys []string, columns map[string]string, data []gonx.Entry) clickhouse.Rows {
+	var rows []clickhouse.Row
 
-	rows := []clickhouse.Row{}
-
-	for _, log_entry := range data {
-
+	for _, logEntry := range data {
 		row := clickhouse.Row{}
 
-		for _, column := range column_keys {
-
-			value, _ := log_entry.Field(columns[column])
-
-			row = append(row, parseField(columns[column], value))
+		for _, column := range keys {
+			value, _ := logEntry.Field(columns[column])
+			row = append(row, nginx.ParseField(columns[column], value))
 		}
 
 		rows = append(rows, row)
@@ -71,21 +66,18 @@ func buildRows(column_keys []string, columns map[string]string, data []gonx.Entr
 	return rows
 }
 
-func getStorage(config *Config) (*clickhouse.Conn, error) {
+func getStorage(config *config.Config) (*clickhouse.Conn, error) {
 
-	if clickhouse_storage != nil {
-		return clickhouse_storage, nil
+	if clickHouseStorage != nil {
+		return clickHouseStorage, nil
 	}
 
-	chttp := clickhouse.NewHttpTransport()
-
-	conn := clickhouse.NewConn(config.ClickHouse.Host+":"+config.ClickHouse.Port, chttp)
+	cHttp := clickhouse.NewHttpTransport()
+	conn := clickhouse.NewConn(config.ClickHouse.Host+":"+config.ClickHouse.Port, cHttp)
 
 	params := url.Values{}
-
 	params.Add("user", config.ClickHouse.Credentials.User)
 	params.Add("password", config.ClickHouse.Credentials.Password)
-
 	conn.SetParams(params)
 
 	err := conn.Ping()

@@ -1,6 +1,7 @@
-package main
+package nginx
 
 import (
+	"github.com/mintance/nginx-clickhouse/config"
 	"github.com/satyrius/gonx"
 	"io"
 	"strconv"
@@ -8,7 +9,7 @@ import (
 	"time"
 )
 
-func getParser(config *Config) (*gonx.Parser, error) {
+func GetParser(config *config.Config) (*gonx.Parser, error) {
 
 	// Use nginx config file to extract format by the name
 	nginxConfig := strings.NewReader(`
@@ -20,15 +21,15 @@ func getParser(config *Config) (*gonx.Parser, error) {
 	return gonx.NewNginxParser(nginxConfig, config.Nginx.LogType)
 }
 
-func parseField(key string, value string) interface{} {
+func ParseField(key string, value string) interface{} {
 
 	switch key {
 	case "time_local":
 
-		t, err := time.Parse(nginxTimeLayout, value)
+		t, err := time.Parse(config.NginxTimeLayout, value)
 
 		if err == nil {
-			return t.Format(chTimeLayout)
+			return t.Format(config.CHTimeLayout)
 		} else {
 			return value
 		}
@@ -50,13 +51,12 @@ func parseField(key string, value string) interface{} {
 	return value
 }
 
-func parseLogs(parser *gonx.Parser, log_lines []string) []gonx.Entry {
+func ParseLogs(parser *gonx.Parser, logLines []string) []gonx.Entry {
 
-	logReader := strings.NewReader(strings.Join(log_lines, "\n"))
-
+	logReader := strings.NewReader(strings.Join(logLines, "\n"))
 	reader := gonx.NewParserReader(logReader, parser)
 
-	logs := []gonx.Entry{}
+	var logs []gonx.Entry
 
 	for {
 		rec, err := reader.Read()

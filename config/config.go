@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"flag"
@@ -33,14 +33,15 @@ type Config struct {
 
 var configPath string
 
+var NginxTimeLayout = "02/Jan/2006:15:04:05 -0700"
+var CHTimeLayout = "2006-01-02 15:04:05"
+
 func init() {
-
-	flag.StringVar(&configPath, "config_path", "config/config.yaml", "Config path.")
-
+	flag.StringVar(&configPath, "config_path", "config/config.yml", "Config path.")
 	flag.Parse()
 }
 
-func readConfig() *Config {
+func Read() *Config {
 
 	config := Config{}
 
@@ -61,7 +62,7 @@ func readConfig() *Config {
 	return &config
 }
 
-func (c *Config) setEnvVariables() {
+func (c *Config) SetEnvVariables() {
 
 	// Settings
 
