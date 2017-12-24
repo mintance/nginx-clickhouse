@@ -7,3 +7,6 @@ glide.lock
 
 # logs
 logs/*.log
+
+# Config
+config.yml
