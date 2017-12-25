@@ -18,9 +18,13 @@ Simple nginx logs parser &amp; transporter to ClickHouse database.
 
 ### How to run
 
+Pull image from Docker Hub (if you didn't want build it)
+
+`docker pull mintance/nginx-clickhouse`
+
 For this example, we include `/var/log/nginx` directory, where we store our logs, and `config` directory where we store `config.yml` file.
 
-`docker run --rm --net=host --name nginx-streaming -v /var/log/nginx:/logs -v config:/config -d nginx-clickhouse`
+`docker run --rm --net=host --name nginx-clickhouse -v /var/log/nginx:/logs -v config:/config -d mintance/nginx-clickhouse`
 
 ### How this works?
 
