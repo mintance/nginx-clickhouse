@@ -2,7 +2,7 @@
 
 Simple nginx logs parser &amp; transporter to ClickHouse database.
 
-### How to build
+### How to build from sources
 
 #### 1. Install helpers
 
@@ -12,21 +12,31 @@ Simple nginx logs parser &amp; transporter to ClickHouse database.
 
 `make dependencies`
 
-#### 3. Build docker image
+#### 3. Build binary file
 
-`make docker-build`
+`make build`
+
+### How to build Docker image
+
+To build image just type this command, and it will compile binary from sources and create Docker image. You don't need to have Go development tools, the [build process will be in Docker](https://medium.com/travis-on-docker/multi-stage-docker-builds-for-creating-tiny-go-images-e0e1867efe5a).
+
+`make docker`
 
 ### How to run
 
-Pull image from Docker Hub (if you didn't want build it)
+#### 1. Pull image from Docker Hub (or build from sources)
 
 `docker pull mintance/nginx-clickhouse`
+
+There are always last stable image, it automatically builds when release created.
+
+#### 2. Run Docker container
 
 For this example, we include `/var/log/nginx` directory, where we store our logs, and `config` directory where we store `config.yml` file.
 
 `docker run --rm --net=host --name nginx-clickhouse -v /var/log/nginx:/logs -v config:/config -d mintance/nginx-clickhouse`
 
-### How this works?
+### How it works?
 
 Here are described full setting-up example.
 

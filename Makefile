@@ -15,6 +15,8 @@ install-helpers:
 	echo "Installing Glide"
 	curl https://glide.sh/get | sh
 
-docker-build:
+build:
 	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o nginx-clickhouse .
-	docker build --rm --no-cache=true -t nginx-clickhouse -f Dockerfile .
+
+docker:
+	docker build --rm --no-cache=true -t mintance/nginx-clickhouse -f Dockerfile .
