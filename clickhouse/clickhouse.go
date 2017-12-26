@@ -7,6 +7,7 @@ import (
 	"github.com/satyrius/gonx"
 	"net/url"
 	"reflect"
+	"github.com/Sirupsen/logrus"
 )
 
 var clickHouseStorage *clickhouse.Conn
@@ -48,15 +49,16 @@ func getColumns(columns map[string]string) []string {
 	return stringColumns
 }
 
-func buildRows(keys []string, columns map[string]string, data []gonx.Entry) clickhouse.Rows {
-
-	var rows []clickhouse.Row
+func buildRows(keys []string, columns map[string]string, data []gonx.Entry) (rows clickhouse.Rows) {
 
 	for _, logEntry := range data {
 		row := clickhouse.Row{}
 
 		for _, column := range keys {
-			value, _ := logEntry.Field(columns[column])
+			value, err := logEntry.Field(columns[column])
+			if err != nil {
+				logrus.Errorf("error to build rows: %v", err)
+			}
 			row = append(row, nginx.ParseField(columns[column], value))
 		}
 
@@ -72,17 +74,15 @@ func getStorage(config *config.Config) (*clickhouse.Conn, error) {
 		return clickHouseStorage, nil
 	}
 
-	cHttp := clickhouse.NewHttpTransport()
-	conn := clickhouse.NewConn(config.ClickHouse.Host+":"+config.ClickHouse.Port, cHttp)
+	cHTTP := clickhouse.NewHttpTransport()
+	conn := clickhouse.NewConn(config.ClickHouse.Host+":"+config.ClickHouse.Port, cHTTP)
 
 	params := url.Values{}
 	params.Add("user", config.ClickHouse.Credentials.User)
 	params.Add("password", config.ClickHouse.Credentials.Password)
 	conn.SetParams(params)
 
-	err := conn.Ping()
-
-	if err != nil {
+	if err := conn.Ping(); err != nil {
 		return nil, err
 	}
 

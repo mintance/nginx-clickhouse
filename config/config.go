@@ -47,15 +47,13 @@ func Read() *Config {
 
 	logrus.Info("Reading config file: " + configPath)
 
-	data, err := ioutil.ReadFile(configPath)
+	var data, err = ioutil.ReadFile(configPath)
 
 	if err != nil {
 		logrus.Fatal("Config open error: ", err)
 	}
 
-	err = yaml.Unmarshal(data, &config)
-
-	if err != nil {
+	if err = yaml.Unmarshal(data, &config); err != nil {
 		logrus.Fatal("Config read & unmarshal error: ", err)
 	}
 
@@ -71,7 +69,14 @@ func (c *Config) SetEnvVariables() {
 	}
 
 	if os.Getenv("FLUSH_INTERVAL") != "" {
-		c.Settings.Interval, _ = strconv.Atoi(os.Getenv("FLUSH_INTERVAL"))
+
+		var flushInterval, err = strconv.Atoi(os.Getenv("FLUSH_INTERVAL"))
+
+		if err != nil {
+			logrus.Errorf("error to convert FLUSH_INTERVAL string to int: %v", err)
+		}
+
+		c.Settings.Interval = flushInterval
 	}
 
 	// ClickHouse
