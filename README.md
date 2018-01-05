@@ -5,6 +5,7 @@
 [![Docker Build Status](https://img.shields.io/docker/build/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
 [![Docker Stars](https://img.shields.io/docker/stars/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
+[![GitHub issues](https://img.shields.io/github/issues/mintance/nginx-clickhouse.svg)](https://github.com/mintance/nginx-clickhouse/issues)
 
 Simple nginx logs parser &amp; transporter to ClickHouse database.
 
@@ -52,7 +53,7 @@ In nginx, there are: [nginx_http_log_module](http://nginx.org/en/docs/http/ngx_h
 
 They are defined in `/etc/nginx/nginx.conf` file. For example we create `main` log format.
 
-```
+```lua
 http {
     ...
      log_format main '$remote_addr - $remote_user [$time_local]
@@ -63,7 +64,7 @@ http {
 
 After defining this, we can use it in our site config `/etc/nginx/sites-enabled/my-site.conf` inside server section:
 
-```
+```lua
 server {
   ...
   access_log /var/log/nginx/my-site-access.log main;
@@ -77,7 +78,7 @@ Now all what we need, is to create `config.yml` file where we describe our log f
 
 This is table schema for our example.
 
-```
+```sql
 CREATE TABLE metrics.nginx (
     RemoteAddr String,
     RemoteUser String,
@@ -103,7 +104,7 @@ CREATE TABLE metrics.nginx (
 
 ##### 1. Log path & flushing interval
 
-```
+```yaml
 settings:
   interval: 5 # in seconds
   log_path: /var/log/nginx/my-site-access.log # path to logfile
@@ -111,7 +112,7 @@ settings:
 
 ##### 2. ClickHouse credentials and table schema
 
-```
+```yaml
 clickhouse:
  db: metrics # Database name
  table: nginx # Table name
@@ -124,7 +125,7 @@ clickhouse:
 
 Here we describe in key-value format (key - ClickHouse column, value - log variable) relation between column and log variable.
 
-```
+```yaml
 columns:
     RemoteAddr: remote_addr
     RemoteUser: remote_user
@@ -140,7 +141,7 @@ columns:
 
 In `log_format` - we just copy format from nginx.conf
 
-```
+```yaml
 nginx:
   log_type: main
   log_format: $remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"
@@ -148,7 +149,7 @@ nginx:
 
 ##### 4. Full config file example
 
-```
+```yaml
 settings:
     interval: 5
     log_path: /var/log/nginx/my-site-access.log
