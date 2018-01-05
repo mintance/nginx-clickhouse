@@ -1,8 +1,10 @@
 # nginx-clickhouse &nbsp; [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/intent/tweet?text=Simple%20NGINX%20logs%20parser%20and%20transporter%20to%20ClickHouse%20database.%20&amp;url=https://github.com/mintance/nginx-clickhouse&amp;hashtags=nginx,clickhouse,golang)
 
 [![License: Apache 2](https://img.shields.io/hexpm/l/plug.svg)](https://github.com/mintance/nginx-clickhouse/blob/master/LICENSE)
-![Docker Build Status](https://img.shields.io/badge/golang-1.5%2B-blue.svg)
-[![Docker Build Status](https://img.shields.io/docker/build/jrottenberg/ffmpeg.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/builds/)
+![Golang Version](https://img.shields.io/badge/golang-1.5%2B-blue.svg)
+[![Docker Build Status](https://img.shields.io/docker/build/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
+[![Docker Pulls](https://img.shields.io/docker/pulls/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
+[![Docker Stars](https://img.shields.io/docker/stars/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
 
 Simple nginx logs parser &amp; transporter to ClickHouse database.
 
