@@ -38,7 +38,7 @@ func ParseField(key string, value string) interface{} {
 
 	case "remote_addr", "remote_user", "request", "http_referer", "http_user_agent", "request_method", "https":
 		return value
-	case "bytes_sent", "connections_waiting", "connections_active", "status":
+	case "bytes_sent", "connections_waiting", "connections_active", "status", "connection", "request_length", "body_bytes_sent":
 		val, err := strconv.Atoi(value)
 
 		if err != nil {
@@ -46,7 +46,7 @@ func ParseField(key string, value string) interface{} {
 		}
 
 		return val
-	case "request_time", "upstream_connect_time", "upstream_header_time", "upstream_response_time":
+	case "request_time", "upstream_connect_time", "upstream_header_time", "upstream_response_time", "msec":
 		val, err := strconv.ParseFloat(value, 32)
 
 		if err != nil {
