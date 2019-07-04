@@ -2,10 +2,11 @@ package main
 
 import (
 	"github.com/Sirupsen/logrus"
-	"github.com/hpcloud/tail"
 	"github.com/mintance/nginx-clickhouse/clickhouse"
 	configParser "github.com/mintance/nginx-clickhouse/config"
 	"github.com/mintance/nginx-clickhouse/nginx"
+	"github.com/papertrail/go-tail/follower"
+	"io"
 	"sync"
 	"time"
 )
@@ -16,6 +17,7 @@ var (
 )
 
 func main() {
+
 
 	// Read config & incoming flags
 	config := configParser.Read()
@@ -30,7 +32,12 @@ func main() {
 	}
 
 	logs = []string{}
-	t, err := tail.TailFile(config.Settings.LogPath, tail.Config{Follow: true, ReOpen: true, MustExist: true})
+
+	t, err := follower.New(config.Settings.LogPath, follower.Config{
+		Whence: io.SeekEnd,
+		Offset: 0,
+		Reopen: true,
+	})
 
 	if err != nil {
 		logrus.Fatal("Can`t tail logfile: ", err)
@@ -61,9 +68,9 @@ func main() {
 	}()
 
 	// Push new log entries to array
-	for line := range t.Lines {
+	for line := range t.Lines() {
 		locker.Lock()
-		logs = append(logs, line.Text)
+		logs = append(logs, line.String())
 		locker.Unlock()
 	}
 }
