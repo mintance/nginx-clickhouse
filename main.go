@@ -1,14 +1,19 @@
 package main
 
 import (
+	"io"
+	"net/http"
+	"sync"
+	"time"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/mintance/nginx-clickhouse/clickhouse"
 	configParser "github.com/mintance/nginx-clickhouse/config"
 	"github.com/mintance/nginx-clickhouse/nginx"
 	"github.com/papertrail/go-tail/follower"
-	"io"
-	"sync"
-	"time"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -16,8 +21,18 @@ var (
 	logs   []string
 )
 
-func main() {
+var (
+	linesProcessed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_lines_processed_total",
+		Help: "The total number of processed log lines",
+	})
+	linesNotProcessed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_lines_not_processed_total",
+		Help: "The total number of log lines which was not processed",
+	})
+)
 
+func main() {
 
 	// Read config & incoming flags
 	config := configParser.Read()
@@ -27,11 +42,18 @@ func main() {
 
 	nginxParser, err := nginx.GetParser(config)
 
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(":2112", nil)
+	}()
+
 	if err != nil {
 		logrus.Fatal("Can`t parse nginx log format: ", err)
 	}
 
 	logs = []string{}
+
+	logrus.Info("Trying to open logfile: " + config.Settings.LogPath)
 
 	t, err := follower.New(config.Settings.LogPath, follower.Config{
 		Whence: io.SeekEnd,
@@ -42,8 +64,6 @@ func main() {
 	if err != nil {
 		logrus.Fatal("Can`t tail logfile: ", err)
 	}
-
-	logrus.Info("Opening logfile: " + config.Settings.LogPath)
 
 	go func() {
 		for {
@@ -57,8 +77,10 @@ func main() {
 
 				if err != nil {
 					logrus.Error("Can`t save logs: ", err)
+					linesNotProcessed.Add(float64(len(logs)))
 				} else {
 					logrus.Info("Saved ", len(logs), " new logs.")
+					linesProcessed.Add(float64(len(logs)))
 					logs = []string{}
 				}
 
