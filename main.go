@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -81,9 +82,9 @@ func main() {
 				} else {
 					logrus.Info("Saved ", len(logs), " new logs.")
 					linesProcessed.Add(float64(len(logs)))
-					logs = []string{}
 				}
 
+				logs = []string{}
 				locker.Unlock()
 			}
 		}
@@ -92,7 +93,7 @@ func main() {
 	// Push new log entries to array
 	for line := range t.Lines() {
 		locker.Lock()
-		logs = append(logs, line.String())
+		logs = append(logs, strings.TrimSpace(line.String()))
 		locker.Unlock()
 	}
 }
