@@ -2,7 +2,7 @@
 settings:
   interval: 5 # in seconds
   log_path: logs/test.log # path to logfile
-
+  seek_from_end: false # start reading from the lasl line (to prevent duplicates after restart)
 # ClickHouse credentials
 clickhouse:
  db: metrics
