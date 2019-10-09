@@ -56,8 +56,13 @@ func main() {
 
 	logrus.Info("Trying to open logfile: " + config.Settings.LogPath)
 
+	whenceSeek := io.SeekStart
+	if config.Settings.SeekFromEnd {
+		whenceSeek = io.SeekEnd
+	}
+
 	t, err := follower.New(config.Settings.LogPath, follower.Config{
-		Whence: io.SeekEnd,
+		Whence: whenceSeek,
 		Offset: 0,
 		Reopen: true,
 	})
