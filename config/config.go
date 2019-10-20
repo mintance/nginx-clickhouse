@@ -2,17 +2,19 @@ package config
 
 import (
 	"flag"
-	"github.com/Sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"strconv"
+
+	"github.com/Sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 )
 
 type Config struct {
 	Settings struct {
-		Interval int    `yaml:"interval"`
-		LogPath  string `yaml:"log_path"`
+		Interval    int    `yaml:"interval"`
+		LogPath     string `yaml:"log_path"`
+		SeekFromEnd bool   `yaml:"seek_from_end"`
 	} `yaml:"settings"`
 	ClickHouse struct {
 		Db          string            `yaml:"db"`

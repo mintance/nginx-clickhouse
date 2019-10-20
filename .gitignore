@@ -10,3 +10,5 @@ logs/*.log
 
 # Config
 config.yml
+
+nginx-clickhouse

@@ -165,6 +165,7 @@ nginx:
 settings:
     interval: 5
     log_path: /var/log/nginx/my-site-access.log
+    seek_from_end: false
 clickhouse:
     db: metrics
     table: nginx
