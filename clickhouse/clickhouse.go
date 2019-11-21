@@ -7,7 +7,7 @@ import (
 	"github.com/satyrius/gonx"
 	"net/url"
 	"reflect"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var clickHouseStorage *clickhouse.Conn
