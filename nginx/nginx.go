@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"fmt"
 )
 
