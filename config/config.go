@@ -21,6 +21,8 @@ type Config struct {
 		Table       string            `yaml:"table"`
 		Host        string            `yaml:"host"`
 		Port        string            `yaml:"port"`
+		Secure      bool              `yaml:"secure"`
+		SkipVerify  bool              `yaml:"skip_verify"`
 		Columns     map[string]string `yaml:"columns"`
 		Credentials struct {
 			User     string `yaml:"user"`
@@ -45,7 +47,7 @@ func init() {
 
 func Read() *Config {
 
-	config := Config{}
+	config := &Config{}
 
 	logrus.Info("Reading config file: " + configPath)
 
@@ -59,7 +61,9 @@ func Read() *Config {
 		logrus.Fatal("Config read & unmarshal error: ", err)
 	}
 
-	return &config
+	config.SetEnvVariables()
+
+	return config
 }
 
 func (c *Config) SetEnvVariables() {
@@ -105,6 +109,14 @@ func (c *Config) SetEnvVariables() {
 
 	if os.Getenv("CLICKHOUSE_PASSWORD") != "" {
 		c.ClickHouse.Credentials.Password = os.Getenv("CLICKHOUSE_PASSWORD")
+	}
+
+	if os.Getenv("CLICKHOUSE_SECURE") != "" {
+		c.ClickHouse.Secure, _ = strconv.ParseBool(os.Getenv("CLICKHOUSE_SECURE"))
+	}
+
+	if os.Getenv("CLICKHOUSE_SKIP_VERIFY") != "" {
+		c.ClickHouse.Secure, _ = strconv.ParseBool(os.Getenv("CLICKHOUSE_SKIP_VERIFY"))
 	}
 
 	// Nginx

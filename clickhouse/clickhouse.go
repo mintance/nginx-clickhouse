@@ -1,90 +1,112 @@
 package clickhouse
 
 import (
-	"github.com/mintance/go-clickhouse"
-	"github.com/mintance/nginx-clickhouse/config"
-	"github.com/mintance/nginx-clickhouse/nginx"
+	"context"
+	"crypto/tls"
+	"fmt"
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/compress"
+	"github.com/WinnerSoftLab/nginx-clickhouse/config"
+	"github.com/WinnerSoftLab/nginx-clickhouse/nginx"
 	"github.com/satyrius/gonx"
-	"net/url"
-	"reflect"
 	"github.com/sirupsen/logrus"
+	"strings"
+	"time"
 )
 
-var clickHouseStorage *clickhouse.Conn
+type Storage struct {
+	Conn   clickhouse.Conn
+	Config *config.Config
+	ctx    context.Context
+}
 
-func Save(config *config.Config, logs []gonx.Entry) error {
+func NewStorage(config *config.Config, ctx context.Context) (*Storage, error) {
+	var err error
+	storage := Storage{
+		Config: config,
+		ctx:    ctx,
+	}
 
-	storage, err := getStorage(config)
+	opts := &clickhouse.Options{
+		Addr: []string{config.ClickHouse.Host + ":" + config.ClickHouse.Port},
+		Auth: clickhouse.Auth{
+			Database: config.ClickHouse.Db,
+			Username: config.ClickHouse.Credentials.User,
+			Password: config.ClickHouse.Credentials.Password,
+		},
 
+		MaxOpenConns:    10,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: time.Hour,
+		DialTimeout:     time.Second * 15,
+		Compression:     &clickhouse.Compression{compress.ZSTD},
+	}
+
+	if config.ClickHouse.Secure {
+		opts.TLS = &tls.Config{
+			InsecureSkipVerify: config.ClickHouse.SkipVerify,
+		}
+	}
+
+	storage.Conn, err = clickhouse.Open(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := storage.Conn.Ping(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return &storage, nil
+}
+
+func (s *Storage) Save(logs []*gonx.Entry) error {
+	fields := getColumns(s.Config.ClickHouse.Columns)
+	req := fmt.Sprintf("INSERT INTO %s (%s)", s.Config.ClickHouse.Table, strings.Join(fields, ","))
+	batch, err := s.Conn.PrepareBatch(s.ctx, req)
 	if err != nil {
 		return err
 	}
 
-	columns := getColumns(config.ClickHouse.Columns)
+	rows := buildRows(fields, s.Config.ClickHouse.Columns, logs)
 
-	rows := buildRows(columns, config.ClickHouse.Columns, logs)
+	for _, row := range rows {
+		if err := batch.Append(row...); err != nil {
+			return err
+		}
+	}
 
-	query, err := clickhouse.BuildMultiInsert(
-		config.ClickHouse.Db+"."+config.ClickHouse.Table,
-		columns,
-		rows,
-	)
-
-	if err != nil {
+	if err := batch.Send(); err != nil {
 		return err
 	}
 
-	return query.Exec(storage)
+	return nil
 }
 
 func getColumns(columns map[string]string) []string {
-
-	keys := reflect.ValueOf(columns).MapKeys()
-	stringColumns := make([]string, len(keys))
-
-	for i := 0; i < len(keys); i++ {
-		stringColumns[i] = keys[i].String()
+	cols := make([]string, 0, len(columns))
+	for k, _ := range columns {
+		cols = append(cols, k)
 	}
-
-	return stringColumns
+	return cols
 }
 
-func buildRows(keys []string, columns map[string]string, data []gonx.Entry) (rows clickhouse.Rows) {
+func buildRows(fields []string, columns map[string]string, data []*gonx.Entry) (rows [][]interface{}) {
+	rows = make([][]interface{}, 0, len(data))
 
+Rows:
 	for _, logEntry := range data {
-		row := clickhouse.Row{}
-
-		for _, column := range keys {
-			value, err := logEntry.Field(columns[column])
-			if err != nil {
+		row := make([]interface{}, 0, len(columns))
+		for _, v := range fields {
+			if value, err := logEntry.Field(columns[v]); err != nil {
 				logrus.Errorf("error to build rows: %v", err)
+				continue Rows
+			} else {
+				row = append(row, nginx.ParseField(columns[v], value))
 			}
-			row = append(row, nginx.ParseField(columns[column], value))
 		}
-
 		rows = append(rows, row)
 	}
 
 	return rows
-}
-
-func getStorage(config *config.Config) (*clickhouse.Conn, error) {
-
-	if clickHouseStorage != nil {
-		return clickHouseStorage, nil
-	}
-
-	cHTTP := clickhouse.NewHttpTransport()
-	conn := clickhouse.NewConn(config.ClickHouse.Host+":"+config.ClickHouse.Port, cHTTP)
-
-	params := url.Values{}
-	params.Add("user", config.ClickHouse.Credentials.User)
-	params.Add("password", config.ClickHouse.Credentials.Password)
-	conn.SetParams(params)
-
-	if err := conn.Ping(); err != nil {
-		return nil, err
-	}
-
-	return conn, nil
 }
