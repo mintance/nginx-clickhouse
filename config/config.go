@@ -19,8 +19,7 @@ type Config struct {
 	ClickHouse struct {
 		Db          string            `yaml:"db"`
 		Table       string            `yaml:"table"`
-		Host        string            `yaml:"host"`
-		Port        string            `yaml:"port"`
+		Hosts       []string          `yaml:"hosts"`
 		Secure      bool              `yaml:"secure"`
 		SkipVerify  bool              `yaml:"skip_verify"`
 		Columns     map[string]string `yaml:"columns"`

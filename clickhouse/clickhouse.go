@@ -28,7 +28,7 @@ func NewStorage(config *config.Config, ctx context.Context) (*Storage, error) {
 	}
 
 	opts := &clickhouse.Options{
-		Addr: []string{config.ClickHouse.Host + ":" + config.ClickHouse.Port},
+		Addr: config.ClickHouse.Hosts,
 		Auth: clickhouse.Auth{
 			Database: config.ClickHouse.Db,
 			Username: config.ClickHouse.Credentials.User,
