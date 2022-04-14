@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -86,12 +87,11 @@ func (c *Config) SetEnvVariables() {
 
 	// ClickHouse
 
-	if os.Getenv("CLICKHOUSE_HOST") != "" {
-		c.ClickHouse.Host = os.Getenv("CLICKHOUSE_HOST")
-	}
-
-	if os.Getenv("CLICKHOUSE_PORT") != "" {
-		c.ClickHouse.Port = os.Getenv("CLICKHOUSE_PORT")
+	if os.Getenv("CLICKHOUSE_HOSTS") != "" {
+		c.ClickHouse.Hosts = strings.Split(os.Getenv("CLICKHOUSE_HOST"), ",")
+		for i, val := range c.ClickHouse.Hosts {
+			c.ClickHouse.Hosts[i] = strings.TrimSpace(val)
+		}
 	}
 
 	if os.Getenv("CLICKHOUSE_DB") != "" {
