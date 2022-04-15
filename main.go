@@ -109,13 +109,13 @@ func Reader(config *configParser.Config, ch chan<- []string) {
 			buff = append(buff, strings.TrimSpace(line.String()))
 			if len(buff) >= BuffSize {
 				ch <- buff
-				buff = buff[:0]
+				buff = make([]string, 0, BuffSize)
 				timer = time.NewTimer(BuffTimeout)
 			}
 		case <-timer.C:
 			if len(buff) > 0 {
 				ch <- buff
-				buff = buff[:0]
+				buff = make([]string, 0, BuffSize)
 				timer = time.NewTimer(BuffTimeout)
 			}
 		}

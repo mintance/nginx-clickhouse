@@ -34,12 +34,12 @@ func NewStorage(config *config.Config, ctx context.Context) (*Storage, error) {
 			Username: config.ClickHouse.Credentials.User,
 			Password: config.ClickHouse.Credentials.Password,
 		},
-
-		MaxOpenConns:    10,
-		MaxIdleConns:    5,
-		ConnMaxLifetime: time.Hour,
-		DialTimeout:     time.Second * 15,
-		Compression:     &clickhouse.Compression{compress.ZSTD},
+		MaxOpenConns:     10,
+		MaxIdleConns:     5,
+		ConnMaxLifetime:  time.Hour,
+		DialTimeout:      time.Second * 15,
+		Compression:      &clickhouse.Compression{compress.ZSTD},
+		ConnOpenStrategy: clickhouse.ConnOpenRoundRobin,
 	}
 
 	if config.ClickHouse.Secure {
