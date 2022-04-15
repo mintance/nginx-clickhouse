@@ -101,7 +101,6 @@ func (s *Storage) GetConn() clickhouse.Conn {
 		keys = append(keys, key)
 	}
 	key := keys[rand.Intn(len(keys))]
-	logrus.Infof("Return: %s", key)
 	return s.connActive[key]
 }
 
