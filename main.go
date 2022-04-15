@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,8 @@ var (
 const ChanSize = 10
 const BuffSize = 200000
 const BuffTimeout = time.Minute * 5
+
+var pool = sync.Pool{New: func() interface{} { return make([]string, 0, BuffSize) }}
 
 func main() {
 	// Read config & incoming flags
@@ -80,6 +83,8 @@ func Writer(storage *clickhouse.Storage, nginxParser *gonx.Parser, ch <-chan []s
 			logrus.Info("Saved ", len(pack), " new logs.")
 			linesProcessed.Add(float64(len(pack)))
 		}
+		pack = pack[:0]
+		pool.Put(pack)
 	}
 }
 
@@ -97,7 +102,7 @@ func Reader(config *configParser.Config, ch chan<- []string) {
 		logrus.Fatalf("Can't tail logfile: %s", err)
 	}
 
-	buff := make([]string, 0, BuffSize)
+	buff := pool.Get().([]string)
 	timer := time.NewTimer(BuffTimeout)
 	for {
 		select {
@@ -109,13 +114,13 @@ func Reader(config *configParser.Config, ch chan<- []string) {
 			buff = append(buff, strings.TrimSpace(line.String()))
 			if len(buff) >= BuffSize {
 				ch <- buff
-				buff = make([]string, 0, BuffSize)
+				buff = pool.Get().([]string)
 				timer = time.NewTimer(BuffTimeout)
 			}
 		case <-timer.C:
 			if len(buff) > 0 {
 				ch <- buff
-				buff = make([]string, 0, BuffSize)
+				buff = pool.Get().([]string)
 				timer = time.NewTimer(BuffTimeout)
 			}
 		}
