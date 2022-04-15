@@ -10,60 +10,105 @@ import (
 	"github.com/WinnerSoftLab/nginx-clickhouse/nginx"
 	"github.com/satyrius/gonx"
 	"github.com/sirupsen/logrus"
+	"math/rand"
 	"strings"
+	"sync"
 	"time"
 )
 
 type Storage struct {
-	Conn   clickhouse.Conn
-	Config *config.Config
-	ctx    context.Context
+	connActive      map[string]clickhouse.Conn
+	connAll         map[string]clickhouse.Conn
+	connActiveMutex sync.RWMutex
+	Config          *config.Config
+	ctx             context.Context
 }
 
 func NewStorage(config *config.Config, ctx context.Context) (*Storage, error) {
 	var err error
 	storage := Storage{
-		Config: config,
-		ctx:    ctx,
+		connAll:    make(map[string]clickhouse.Conn),
+		connActive: make(map[string]clickhouse.Conn),
+		Config:     config,
+		ctx:        ctx,
 	}
 
-	opts := &clickhouse.Options{
-		Addr: config.ClickHouse.Hosts,
-		Auth: clickhouse.Auth{
-			Database: config.ClickHouse.Db,
-			Username: config.ClickHouse.Credentials.User,
-			Password: config.ClickHouse.Credentials.Password,
-		},
-		MaxOpenConns:     8,
-		MaxIdleConns:     4,
-		ConnMaxLifetime:  time.Hour,
-		DialTimeout:      time.Second * 15,
-		Compression:      &clickhouse.Compression{compress.ZSTD},
-		ConnOpenStrategy: clickhouse.ConnOpenRoundRobin,
-	}
+	for _, host := range config.ClickHouse.Hosts {
+		opts := &clickhouse.Options{
+			Addr: []string{host},
+			Auth: clickhouse.Auth{
+				Database: config.ClickHouse.Db,
+				Username: config.ClickHouse.Credentials.User,
+				Password: config.ClickHouse.Credentials.Password,
+			},
+			MaxOpenConns:     8,
+			MaxIdleConns:     4,
+			ConnMaxLifetime:  time.Hour,
+			DialTimeout:      time.Second * 15,
+			Compression:      &clickhouse.Compression{compress.ZSTD},
+			ConnOpenStrategy: clickhouse.ConnOpenRoundRobin,
+		}
 
-	if config.ClickHouse.Secure {
-		opts.TLS = &tls.Config{
-			InsecureSkipVerify: config.ClickHouse.SkipVerify,
+		if config.ClickHouse.Secure {
+			opts.TLS = &tls.Config{
+				InsecureSkipVerify: config.ClickHouse.SkipVerify,
+			}
+		}
+
+		storage.connAll[host], err = clickhouse.Open(opts)
+		if err != nil {
+			return nil, err
 		}
 	}
-
-	storage.Conn, err = clickhouse.Open(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := storage.Conn.Ping(context.Background()); err != nil {
-		return nil, err
-	}
+	storage.check()
+	go storage.checker()
 
 	return &storage, nil
+}
+
+func (s *Storage) check() {
+	for name, conn := range s.connAll {
+		if err := conn.Ping(s.ctx); err != nil {
+			s.connActiveMutex.Lock()
+			delete(s.connActive, name)
+			s.connActiveMutex.Unlock()
+		} else {
+			s.connActiveMutex.Lock()
+			s.connActive[name] = conn
+			s.connActiveMutex.Unlock()
+		}
+	}
+}
+
+func (s *Storage) checker() {
+	for {
+		s.check()
+		time.Sleep(time.Second * 5)
+	}
+}
+
+func (s *Storage) GetConn() clickhouse.Conn {
+	s.connActiveMutex.RLock()
+	defer s.connActiveMutex.RUnlock()
+	if len(s.connActive) == 0 {
+		logrus.Warn("No active CH connections in the pool")
+		for _, conn := range s.connAll {
+			return conn
+		}
+	}
+	keys := make([]string, 0, len(s.connActive))
+	for key, _ := range s.connActive {
+		keys = append(keys, key)
+	}
+	key := keys[rand.Intn(len(keys))]
+	logrus.Infof("Return: %s", key)
+	return s.connActive[key]
 }
 
 func (s *Storage) Save(logs []*gonx.Entry) error {
 	fields := getColumns(s.Config.ClickHouse.Columns)
 	req := fmt.Sprintf("INSERT INTO %s (%s)", s.Config.ClickHouse.Table, strings.Join(fields, ","))
-	batch, err := s.Conn.PrepareBatch(s.ctx, req)
+	batch, err := s.GetConn().PrepareBatch(s.ctx, req)
 	if err != nil {
 		return err
 	}
