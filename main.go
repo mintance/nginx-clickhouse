@@ -33,8 +33,8 @@ var (
 	})
 )
 
-const ChanSize = 10
-const BuffSize = 200000
+const ChanSize = 4
+const BuffSize = 500000
 const BuffTimeout = time.Minute * 5
 
 var pool = sync.Pool{New: func() interface{} { return make([]string, 0, BuffSize) }}
