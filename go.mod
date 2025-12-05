@@ -7,7 +7,7 @@ require (
 	github.com/papertrail/go-tail v0.0.0-20180509224916-973c153b0431
 	github.com/prometheus/client_golang v1.12.1
 	github.com/satyrius/gonx v1.3.1-0.20210630191304-422f42f8923b
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.8.3
 	gopkg.in/yaml.v2 v2.4.0
 )
 
