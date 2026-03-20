@@ -1,7 +1,13 @@
 # nginx-clickhouse
 
-[![License: Apache 2](https://img.shields.io/hexpm/l/plug.svg)](https://github.com/mintance/nginx-clickhouse/blob/master/LICENSE)
-![Go Version](https://img.shields.io/badge/go-1.25%2B-blue.svg)
+[![Share on X](https://img.shields.io/badge/share-000000?logo=x&logoColor=white)](https://x.com/intent/tweet?text=Simple%20NGINX%20logs%20parser%20and%20transporter%20to%20ClickHouse%20database.&url=https://github.com/mintance/nginx-clickhouse&hashtags=nginx,clickhouse,golang)
+[![Share on Reddit](https://img.shields.io/badge/share-FF4500?logo=reddit&logoColor=white)](https://www.reddit.com/submit?url=https://github.com/mintance/nginx-clickhouse&title=nginx-clickhouse%20-%20NGINX%20logs%20to%20ClickHouse)
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/mintance/nginx-clickhouse.svg)](https://pkg.go.dev/github.com/mintance/nginx-clickhouse)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mintance/nginx-clickhouse)](https://goreportcard.com/report/github.com/mintance/nginx-clickhouse)
+[![CI](https://github.com/mintance/nginx-clickhouse/actions/workflows/test.yml/badge.svg)](https://github.com/mintance/nginx-clickhouse/actions/workflows/test.yml)
+[![License: Apache 2](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/mintance/nginx-clickhouse/blob/master/LICENSE)
+[![Docker Pulls](https://img.shields.io/docker/pulls/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
 [![GitHub issues](https://img.shields.io/github/issues/mintance/nginx-clickhouse.svg)](https://github.com/mintance/nginx-clickhouse/issues)
 
 Simple NGINX access log parser and transporter to ClickHouse database. Uses the native TCP protocol for fast, compressed batch inserts.
@@ -33,7 +39,7 @@ docker run --rm --net=host --name nginx-clickhouse \
 Requires Go 1.25+.
 
 ```sh
-make build
+go build -o nginx-clickhouse .
 ./nginx-clickhouse -config_path=config/config.yml
 ```
 
@@ -44,6 +50,13 @@ No local Go toolchain required -- builds inside Docker using multi-stage build.
 ```sh
 make docker
 ```
+
+## How It Works
+
+1. Tails the NGINX access log file specified in configuration
+2. Buffers incoming log lines in memory
+3. On a configurable interval, parses the buffered lines using the NGINX log format
+4. Batch-inserts parsed entries into ClickHouse via the native TCP protocol
 
 ## Configuration
 
@@ -65,6 +78,8 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `NGINX_LOG_FORMAT` | NGINX log format string |
 
 ### Full Config Example
+
+See [`config-sample.yml`](config-sample.yml) for a ready-to-use template.
 
 ```yaml
 settings:
@@ -147,13 +162,13 @@ Available at `http://localhost:2112/metrics`:
 
 ## Grafana Dashboard
 
-A pre-built Grafana dashboard is included in `Grafana-dashboard.json`.
+A pre-built Grafana dashboard is included in [`grafana/dashboard.json`](grafana/dashboard.json). Import it into Grafana to visualize your NGINX metrics.
 
-![Grafana Dashboard](https://github.com/mintance/nginx-clickhouse/blob/master/grafana.png)
+![Grafana Dashboard](grafana/dashboard.png)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and pull request guidelines.
 
 ## License
 

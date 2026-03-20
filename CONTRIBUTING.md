@@ -7,28 +7,50 @@ Thank you for your interest in contributing! Here's how to get started.
 ### Prerequisites
 
 - Go 1.25+
-- Docker (for integration tests)
+- Docker (for integration tests and building Docker images)
 
 ### Clone and Build
 
 ```sh
 git clone https://github.com/mintance/nginx-clickhouse.git
 cd nginx-clickhouse
-make build
+go build -o nginx-clickhouse .
 ```
 
-### Run Tests
+### Available Make Targets
+
+| Target | Description |
+|---|---|
+| `make build` | Build a static Linux binary |
+| `make docker` | Build Docker image |
+| `make lint` | Run `gofmt` and `go vet` |
+| `make test` | Run unit tests with race detector |
+| `make test-integration` | Run integration tests (requires ClickHouse on `:9000`) |
+
+### Running Tests
 
 ```sh
 # Unit tests
-go test ./... -v -race
+make test
 
-# Integration tests (requires ClickHouse running on localhost:9000)
+# Integration tests (start ClickHouse first)
 docker run -d --name clickhouse-test -p 9000:9000 clickhouse/clickhouse-server:latest
-go test ./clickhouse/ -v -race -tags integration
+make test-integration
 
 # Clean up
 docker rm -f clickhouse-test
+```
+
+## Project Structure
+
+```
+main.go                      Entry point, log tailing, flush loop
+config/config.go             YAML config parsing, env var overrides
+nginx/nginx.go               NGINX log format parsing
+clickhouse/clickhouse.go     ClickHouse batch insert via native TCP
+clickhouse/integration_test.go  Integration tests (build tag: integration)
+grafana/                     Pre-built Grafana dashboard
+config-sample.yml            Configuration template
 ```
 
 ## Code Style
@@ -43,27 +65,21 @@ This project follows the [Google Go Style Guide](https://google.github.io/styleg
 - Use initialisms consistently: `DB`, `HTTP`, `URL` (not `Db`, `Http`, `Url`)
 - No `Get` prefix on getter functions
 - Use `any` instead of `interface{}`
-
-## Project Structure
-
-```
-main.go              Entry point, log tailing, flush loop
-config/config.go     YAML config parsing, env var overrides
-nginx/nginx.go       NGINX log format parsing
-clickhouse/clickhouse.go   ClickHouse batch insert via native TCP
-```
+- Use modern Go stdlib: `maps`, `slices`, `errors.Is`
 
 ## Pull Request Process
 
 1. Fork the repository and create a feature branch from `master`
 2. Write tests for new functionality
-3. Ensure all tests pass: `go test ./... -race`
-4. Ensure code is formatted: `gofmt -l .` should show no project files
-5. Ensure no vet issues: `go vet ./...`
-6. Update `config-sample.yml` if configuration options change
-7. Submit a pull request against `master`
+3. Ensure all checks pass:
+   ```sh
+   make lint
+   make test
+   ```
+4. Update `config-sample.yml` if configuration options change
+5. Submit a pull request against `master`
 
-CI will automatically run unit tests and integration tests (with a real ClickHouse instance) on your PR.
+CI will automatically run linting, unit tests, and integration tests (with a real ClickHouse instance) on your PR.
 
 ## Reporting Issues
 

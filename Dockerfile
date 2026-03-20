@@ -1,16 +1,16 @@
 # build stage
 FROM golang:1.25-alpine AS build-env
 
-WORKDIR /go/src/github.com/mintance/nginx-clickhouse
+WORKDIR /src
 
-ADD . /go/src/github.com/mintance/nginx-clickhouse
+COPY go.mod go.sum ./
+RUN go mod download
 
-RUN apk update && apk add make g++ git curl
-RUN cd /go/src/github.com/mintance/nginx-clickhouse && make build
+COPY . .
+RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o nginx-clickhouse .
 
 # final stage
 FROM scratch
 
-COPY --from=build-env /go/src/github.com/mintance/nginx-clickhouse/nginx-clickhouse /
+COPY --from=build-env /src/nginx-clickhouse /
 CMD [ "/nginx-clickhouse" ]
-
