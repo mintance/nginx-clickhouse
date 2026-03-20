@@ -1,12 +1,11 @@
 # build stage
-FROM golang:1.17-alpine AS build-env
+FROM golang:1.25-alpine AS build-env
 
 WORKDIR /go/src/github.com/mintance/nginx-clickhouse
 
 ADD . /go/src/github.com/mintance/nginx-clickhouse
 
 RUN apk update && apk add make g++ git curl
-RUN cd /go/src/github.com/mintance/nginx-clickhouse && go get . 
 RUN cd /go/src/github.com/mintance/nginx-clickhouse && make build
 
 # final stage

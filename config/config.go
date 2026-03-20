@@ -2,7 +2,6 @@ package config
 
 import (
 	"flag"
-	"io/ioutil"
 	"os"
 	"strconv"
 
@@ -40,16 +39,18 @@ var CHTimeLayout = "2006-01-02 15:04:05"
 
 func init() {
 	flag.StringVar(&configPath, "config_path", "config/config.yml", "Config path.")
-	flag.Parse()
 }
 
 func Read() *Config {
+	if !flag.Parsed() {
+		flag.Parse()
+	}
 
 	config := Config{}
 
 	logrus.Info("Reading config file: " + configPath)
 
-	var data, err = ioutil.ReadFile(configPath)
+	var data, err = os.ReadFile(configPath)
 
 	if err != nil {
 		logrus.Fatal("Config open error: ", err)
