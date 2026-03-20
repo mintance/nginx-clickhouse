@@ -32,7 +32,6 @@ nginx:
 		t.Fatal(err)
 	}
 
-	// Override the package-level configPath
 	configPath = tmpFile
 
 	cfg := Read()
@@ -46,8 +45,8 @@ nginx:
 	if !cfg.Settings.SeekFromEnd {
 		t.Error("expected SeekFromEnd=true")
 	}
-	if cfg.ClickHouse.Db != "metrics" {
-		t.Errorf("expected Db=metrics, got %s", cfg.ClickHouse.Db)
+	if cfg.ClickHouse.DB != "metrics" {
+		t.Errorf("expected DB=metrics, got %s", cfg.ClickHouse.DB)
 	}
 	if cfg.ClickHouse.Table != "nginx" {
 		t.Errorf("expected Table=nginx, got %s", cfg.ClickHouse.Table)
@@ -76,16 +75,16 @@ func TestSetEnvVariables(t *testing.T) {
 	cfg := &Config{}
 
 	envVars := map[string]string{
-		"LOG_PATH":           "/tmp/test.log",
-		"FLUSH_INTERVAL":     "30",
-		"CLICKHOUSE_HOST":    "ch-server",
-		"CLICKHOUSE_PORT":    "9000",
-		"CLICKHOUSE_DB":      "testdb",
-		"CLICKHOUSE_TABLE":   "testtable",
-		"CLICKHOUSE_USER":    "admin",
+		"LOG_PATH":            "/tmp/test.log",
+		"FLUSH_INTERVAL":      "30",
+		"CLICKHOUSE_HOST":     "ch-server",
+		"CLICKHOUSE_PORT":     "9000",
+		"CLICKHOUSE_DB":       "testdb",
+		"CLICKHOUSE_TABLE":    "testtable",
+		"CLICKHOUSE_USER":     "admin",
 		"CLICKHOUSE_PASSWORD": "pass123",
-		"NGINX_LOG_TYPE":     "combined",
-		"NGINX_LOG_FORMAT":   "$remote_addr $status",
+		"NGINX_LOG_TYPE":      "combined",
+		"NGINX_LOG_FORMAT":    "$remote_addr $status",
 	}
 
 	for k, v := range envVars {
@@ -106,8 +105,8 @@ func TestSetEnvVariables(t *testing.T) {
 	if cfg.ClickHouse.Port != "9000" {
 		t.Errorf("expected Port=9000, got %s", cfg.ClickHouse.Port)
 	}
-	if cfg.ClickHouse.Db != "testdb" {
-		t.Errorf("expected Db=testdb, got %s", cfg.ClickHouse.Db)
+	if cfg.ClickHouse.DB != "testdb" {
+		t.Errorf("expected DB=testdb, got %s", cfg.ClickHouse.DB)
 	}
 	if cfg.ClickHouse.Table != "testtable" {
 		t.Errorf("expected Table=testtable, got %s", cfg.ClickHouse.Table)
@@ -139,7 +138,6 @@ func TestSetEnvVariablesPartial(t *testing.T) {
 	if cfg.Settings.LogPath != "/new/path.log" {
 		t.Errorf("expected LogPath=/new/path.log, got %s", cfg.Settings.LogPath)
 	}
-	// Unchanged values should remain
 	if cfg.Settings.Interval != 5 {
 		t.Errorf("expected Interval=5 (unchanged), got %d", cfg.Settings.Interval)
 	}
@@ -156,7 +154,6 @@ func TestSetEnvVariablesInvalidInterval(t *testing.T) {
 
 	cfg.SetEnvVariables()
 
-	// Should be 0 (failed conversion), not the original value
 	if cfg.Settings.Interval != 0 {
 		t.Errorf("expected Interval=0 after invalid conversion, got %d", cfg.Settings.Interval)
 	}

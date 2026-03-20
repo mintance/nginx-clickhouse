@@ -6,12 +6,12 @@ import (
 	"github.com/mintance/nginx-clickhouse/config"
 )
 
-func TestGetParser(t *testing.T) {
+func TestNewParser(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Nginx.LogType = "main"
 	cfg.Nginx.LogFormat = `$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"`
 
-	parser, err := GetParser(cfg)
+	parser, err := NewParser(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -20,12 +20,12 @@ func TestGetParser(t *testing.T) {
 	}
 }
 
-func TestGetParserInvalidLogType(t *testing.T) {
+func TestNewParserInvalidLogType(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Nginx.LogType = "nonexistent"
 	cfg.Nginx.LogFormat = `$remote_addr`
 
-	_, err := GetParser(cfg)
+	_, err := NewParser(cfg)
 	if err == nil {
 		t.Fatal("expected error for nonexistent log type")
 	}
@@ -47,7 +47,7 @@ func TestParseFieldTimeLocalInvalid(t *testing.T) {
 }
 
 func TestParseFieldStringTypes(t *testing.T) {
-	stringFields := []struct {
+	tests := []struct {
 		key   string
 		value string
 	}{
@@ -60,7 +60,7 @@ func TestParseFieldStringTypes(t *testing.T) {
 		{"https", "on"},
 	}
 
-	for _, tt := range stringFields {
+	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
 			result := ParseField(tt.key, tt.value)
 			if result != tt.value {
@@ -71,7 +71,7 @@ func TestParseFieldStringTypes(t *testing.T) {
 }
 
 func TestParseFieldIntTypes(t *testing.T) {
-	intFields := []struct {
+	tests := []struct {
 		key      string
 		value    string
 		expected int
@@ -85,7 +85,7 @@ func TestParseFieldIntTypes(t *testing.T) {
 		{"connections_active", "5", 5},
 	}
 
-	for _, tt := range intFields {
+	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
 			result := ParseField(tt.key, tt.value)
 			intResult, ok := result.(int)
@@ -100,7 +100,7 @@ func TestParseFieldIntTypes(t *testing.T) {
 }
 
 func TestParseFieldFloatTypes(t *testing.T) {
-	floatFields := []struct {
+	tests := []struct {
 		key      string
 		value    string
 		expected float64
@@ -112,14 +112,13 @@ func TestParseFieldFloatTypes(t *testing.T) {
 		{"msec", "12345.678", 12345.678},
 	}
 
-	for _, tt := range floatFields {
+	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
 			result := ParseField(tt.key, tt.value)
 			floatResult, ok := result.(float64)
 			if !ok {
 				t.Fatalf("expected float64, got %T", result)
 			}
-			// Compare with tolerance for float32 parsing
 			diff := floatResult - tt.expected
 			if diff < -0.01 || diff > 0.01 {
 				t.Errorf("expected ~%f, got %f", tt.expected, floatResult)
@@ -140,7 +139,7 @@ func TestParseLogs(t *testing.T) {
 	cfg.Nginx.LogType = "main"
 	cfg.Nginx.LogFormat = `$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent`
 
-	parser, err := GetParser(cfg)
+	parser, err := NewParser(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser: %v", err)
 	}
@@ -156,7 +155,6 @@ func TestParseLogs(t *testing.T) {
 		t.Fatalf("expected 2 entries, got %d", len(entries))
 	}
 
-	// Collect all remote_addr values
 	addrs := make(map[string]bool)
 	for _, entry := range entries {
 		addr, err := entry.Field("remote_addr")
@@ -179,7 +177,7 @@ func TestParseLogsEmpty(t *testing.T) {
 	cfg.Nginx.LogType = "main"
 	cfg.Nginx.LogFormat = `$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent`
 
-	parser, err := GetParser(cfg)
+	parser, err := NewParser(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser: %v", err)
 	}
