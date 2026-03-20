@@ -43,6 +43,9 @@ jobs:
         ports:
           - 9000:9000
           - 8123:8123
+        env:
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+          CLICKHOUSE_PASSWORD: ""
         options: >-
           --health-cmd "clickhouse-client --query 'SELECT 1'"
           --health-interval 10s

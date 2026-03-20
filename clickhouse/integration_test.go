@@ -14,14 +14,21 @@ import (
 	"github.com/mintance/nginx-clickhouse/nginx"
 )
 
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func testConfig() *config.Config {
 	cfg := &config.Config{}
-	cfg.ClickHouse.Host = "localhost"
-	cfg.ClickHouse.Port = "9000"
+	cfg.ClickHouse.Host = envOrDefault("CLICKHOUSE_HOST", "localhost")
+	cfg.ClickHouse.Port = envOrDefault("CLICKHOUSE_PORT", "9000")
 	cfg.ClickHouse.DB = "test_nginx"
 	cfg.ClickHouse.Table = "access_log"
-	cfg.ClickHouse.Credentials.User = "default"
-	cfg.ClickHouse.Credentials.Password = ""
+	cfg.ClickHouse.Credentials.User = envOrDefault("CLICKHOUSE_USER", "default")
+	cfg.ClickHouse.Credentials.Password = envOrDefault("CLICKHOUSE_PASSWORD", "")
 	cfg.ClickHouse.Columns = map[string]string{
 		"RemoteAddr":    "remote_addr",
 		"RemoteUser":    "remote_user",
@@ -33,26 +40,31 @@ func testConfig() *config.Config {
 		"HttpUserAgent": "http_user_agent",
 	}
 
-	if host := os.Getenv("CLICKHOUSE_HOST"); host != "" {
-		cfg.ClickHouse.Host = host
-	}
-	if port := os.Getenv("CLICKHOUSE_PORT"); port != "" {
-		cfg.ClickHouse.Port = port
-	}
-
 	cfg.Nginx.LogType = "main"
 	cfg.Nginx.LogFormat = `$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"`
 
 	return cfg
 }
 
+// testConnOpts returns ClickHouse connection options using the same env vars
+// as testConfig, with an optional database override.
+func testConnOpts(database string) *clickhouse.Options {
+	return &clickhouse.Options{
+		Addr: []string{fmt.Sprintf("%s:%s",
+			envOrDefault("CLICKHOUSE_HOST", "localhost"),
+			envOrDefault("CLICKHOUSE_PORT", "9000"))},
+		Auth: clickhouse.Auth{
+			Database: database,
+			Username: envOrDefault("CLICKHOUSE_USER", "default"),
+			Password: envOrDefault("CLICKHOUSE_PASSWORD", ""),
+		},
+	}
+}
+
 func setupTestDB(t *testing.T) {
 	t.Helper()
 
-	c, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"localhost:9000"},
-		Auth: clickhouse.Auth{Username: "default"},
-	})
+	c, err := clickhouse.Open(testConnOpts(""))
 	if err != nil {
 		t.Fatalf("connect to clickhouse: %v", err)
 	}
@@ -88,10 +100,7 @@ func setupTestDB(t *testing.T) {
 func teardownTestDB(t *testing.T) {
 	t.Helper()
 
-	c, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"localhost:9000"},
-		Auth: clickhouse.Auth{Username: "default"},
-	})
+	c, err := clickhouse.Open(testConnOpts(""))
 	if err != nil {
 		return
 	}
@@ -126,10 +135,7 @@ func TestIntegrationSave(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	c, _ := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"localhost:9000"},
-		Auth: clickhouse.Auth{Database: "test_nginx", Username: "default"},
-	})
+	c, _ := clickhouse.Open(testConnOpts("test_nginx"))
 	defer c.Close()
 
 	var count uint64
@@ -196,10 +202,7 @@ func TestIntegrationSaveMultipleBatches(t *testing.T) {
 		t.Fatalf("second Save: %v", err)
 	}
 
-	c, _ := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"localhost:9000"},
-		Auth: clickhouse.Auth{Database: "test_nginx", Username: "default"},
-	})
+	c, _ := clickhouse.Open(testConnOpts("test_nginx"))
 	defer c.Close()
 
 	var count uint64
