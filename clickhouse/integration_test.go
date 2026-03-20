@@ -100,21 +100,6 @@ func teardownTestDB(t *testing.T) {
 	_ = c.Exec(context.Background(), "DROP DATABASE IF EXISTS test_nginx")
 }
 
-func queryConn(t *testing.T) *clickhouse.Conn {
-	t.Helper()
-	c, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"localhost:9000"},
-		Auth: clickhouse.Auth{
-			Database: "test_nginx",
-			Username: "default",
-		},
-	})
-	if err != nil {
-		t.Fatalf("open query connection: %v", err)
-	}
-	return c.(*clickhouse.Conn)
-}
-
 func TestIntegrationSave(t *testing.T) {
 	setupTestDB(t)
 	defer teardownTestDB(t)
