@@ -1,3 +1,5 @@
+// Command nginx-clickhouse tails NGINX access logs and batch-inserts parsed
+// entries into ClickHouse.
 package main
 
 import (
@@ -7,19 +9,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/mintance/nginx-clickhouse/clickhouse"
-	configParser "github.com/mintance/nginx-clickhouse/config"
-	"github.com/mintance/nginx-clickhouse/nginx"
 	"github.com/papertrail/go-tail/follower"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sirupsen/logrus"
+
+	"github.com/mintance/nginx-clickhouse/clickhouse"
+	configParser "github.com/mintance/nginx-clickhouse/config"
+	"github.com/mintance/nginx-clickhouse/nginx"
 )
 
 var (
-	locker sync.Mutex
-	logs   []string
+	mu   sync.Mutex
+	logs []string
 )
 
 var (
@@ -29,76 +32,76 @@ var (
 	})
 	linesNotProcessed = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "nginx_clickhouse_lines_not_processed_total",
-		Help: "The total number of log lines which was not processed",
+		Help: "The total number of log lines which were not processed",
 	})
 )
 
 func main() {
+	cfg := configParser.Read()
+	cfg.SetEnvVariables()
 
-	// Read config & incoming flags
-	config := configParser.Read()
-
-	// Update config with environment variables if exist
-	config.SetEnvVariables()
-
-	nginxParser, err := nginx.GetParser(config)
+	parser, err := nginx.NewParser(cfg)
+	if err != nil {
+		logrus.Fatal("can't parse nginx log format: ", err)
+	}
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		http.ListenAndServe(":2112", nil)
-	}()
-
-	if err != nil {
-		logrus.Fatal("Can`t parse nginx log format: ", err)
-	}
-
-	logs = []string{}
-
-	logrus.Info("Trying to open logfile: " + config.Settings.LogPath)
-
-	whenceSeek := io.SeekStart
-	if config.Settings.SeekFromEnd {
-		whenceSeek = io.SeekEnd
-	}
-
-	t, err := follower.New(config.Settings.LogPath, follower.Config{
-		Whence: whenceSeek,
-		Offset: 0,
-		Reopen: true,
-	})
-
-	if err != nil {
-		logrus.Fatal("Can`t tail logfile: ", err)
-	}
-
-	go func() {
-		for {
-			time.Sleep(time.Second * time.Duration(config.Settings.Interval))
-
-			if len(logs) > 0 {
-
-				logrus.Info("Preparing to save ", len(logs), " new log entries.")
-				locker.Lock()
-				err := clickhouse.Save(config, nginx.ParseLogs(nginxParser, logs))
-
-				if err != nil {
-					logrus.Error("Can`t save logs: ", err)
-					linesNotProcessed.Add(float64(len(logs)))
-				} else {
-					logrus.Info("Saved ", len(logs), " new logs.")
-					linesProcessed.Add(float64(len(logs)))
-				}
-
-				logs = []string{}
-				locker.Unlock()
-			}
+		if err := http.ListenAndServe(":2112", nil); err != nil {
+			logrus.Fatal("metrics server failed: ", err)
 		}
 	}()
 
-	// Push new log entries to array
+	logrus.Info("opening log file: ", cfg.Settings.LogPath)
+
+	whence := io.SeekStart
+	if cfg.Settings.SeekFromEnd {
+		whence = io.SeekEnd
+	}
+
+	t, err := follower.New(cfg.Settings.LogPath, follower.Config{
+		Whence: whence,
+		Offset: 0,
+		Reopen: true,
+	})
+	if err != nil {
+		logrus.Fatal("can't tail log file: ", err)
+	}
+
+	go flushLoop(cfg, parser)
+
 	for line := range t.Lines() {
-		locker.Lock()
+		mu.Lock()
 		logs = append(logs, strings.TrimSpace(line.String()))
-		locker.Unlock()
+		mu.Unlock()
+	}
+}
+
+// flushLoop periodically parses buffered log lines and saves them to ClickHouse.
+func flushLoop(cfg *configParser.Config, parser *nginx.Parser) {
+	interval := time.Duration(cfg.Settings.Interval) * time.Second
+	for {
+		time.Sleep(interval)
+
+		mu.Lock()
+		if len(logs) == 0 {
+			mu.Unlock()
+			continue
+		}
+
+		batch := logs
+		logs = nil
+		mu.Unlock()
+
+		logrus.Info("preparing to save ", len(batch), " new log entries")
+
+		entries := nginx.ParseLogs(parser, batch)
+		if err := clickhouse.Save(cfg, entries); err != nil {
+			logrus.Error("can't save logs: ", err)
+			linesNotProcessed.Add(float64(len(batch)))
+		} else {
+			logrus.Info("saved ", len(batch), " new logs")
+			linesProcessed.Add(float64(len(batch)))
+		}
 	}
 }

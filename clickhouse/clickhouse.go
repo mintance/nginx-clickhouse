@@ -1,90 +1,98 @@
+// Package clickhouse handles batch-inserting parsed NGINX log entries into
+// ClickHouse using the native TCP protocol.
 package clickhouse
 
 import (
-	"github.com/mintance/go-clickhouse"
+	"context"
+	"fmt"
+	"maps"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/satyrius/gonx"
+	"github.com/sirupsen/logrus"
+
 	"github.com/mintance/nginx-clickhouse/config"
 	"github.com/mintance/nginx-clickhouse/nginx"
-	"github.com/satyrius/gonx"
-	"net/url"
-	"reflect"
-	"github.com/sirupsen/logrus"
 )
 
-var clickHouseStorage *clickhouse.Conn
+var conn driver.Conn
 
-func Save(config *config.Config, logs []gonx.Entry) error {
-
-	storage, err := getStorage(config)
-
+// Save batch-inserts the parsed log entries into ClickHouse. It reuses an
+// existing connection or establishes a new one based on cfg.
+func Save(cfg *config.Config, logs []gonx.Entry) error {
+	c, err := openConn(cfg)
 	if err != nil {
 		return err
 	}
 
-	columns := getColumns(config.ClickHouse.Columns)
+	columns := slices.Collect(maps.Keys(cfg.ClickHouse.Columns))
+	table := cfg.ClickHouse.DB + "." + cfg.ClickHouse.Table
+	query := fmt.Sprintf("INSERT INTO %s (%s)", table, strings.Join(columns, ", "))
 
-	rows := buildRows(columns, config.ClickHouse.Columns, logs)
-
-	query, err := clickhouse.BuildMultiInsert(
-		config.ClickHouse.Db+"."+config.ClickHouse.Table,
-		columns,
-		rows,
-	)
-
+	batch, err := c.PrepareBatch(context.Background(), query)
 	if err != nil {
-		return err
+		return fmt.Errorf("prepare batch: %w", err)
 	}
 
-	return query.Exec(storage)
-}
-
-func getColumns(columns map[string]string) []string {
-
-	keys := reflect.ValueOf(columns).MapKeys()
-	stringColumns := make([]string, len(keys))
-
-	for i := 0; i < len(keys); i++ {
-		stringColumns[i] = keys[i].String()
-	}
-
-	return stringColumns
-}
-
-func buildRows(keys []string, columns map[string]string, data []gonx.Entry) (rows clickhouse.Rows) {
-
-	for _, logEntry := range data {
-		row := clickhouse.Row{}
-
-		for _, column := range keys {
-			value, err := logEntry.Field(columns[column])
-			if err != nil {
-				logrus.Errorf("error to build rows: %v", err)
-			}
-			row = append(row, nginx.ParseField(columns[column], value))
+	for _, entry := range logs {
+		row := buildRow(columns, cfg.ClickHouse.Columns, entry)
+		if err := batch.Append(row...); err != nil {
+			logrus.Errorf("append row: %v", err)
 		}
-
-		rows = append(rows, row)
 	}
 
-	return rows
+	return batch.Send()
 }
 
-func getStorage(config *config.Config) (*clickhouse.Conn, error) {
+// buildRow converts a single parsed log entry into a slice of values ordered
+// by the given column keys.
+func buildRow(keys []string, columns map[string]string, entry gonx.Entry) []any {
+	row := make([]any, 0, len(keys))
+	for _, col := range keys {
+		field := columns[col]
+		value, err := entry.Field(field)
+		if err != nil {
+			logrus.Errorf("read field %s: %v", field, err)
+			row = append(row, "")
+			continue
+		}
+		row = append(row, nginx.ParseField(field, value))
+	}
+	return row
+}
 
-	if clickHouseStorage != nil {
-		return clickHouseStorage, nil
+// openConn returns the cached ClickHouse connection or establishes a new one
+// using the native TCP protocol.
+func openConn(cfg *config.Config) (driver.Conn, error) {
+	if conn != nil {
+		return conn, nil
 	}
 
-	cHTTP := clickhouse.NewHttpTransport()
-	conn := clickhouse.NewConn(config.ClickHouse.Host+":"+config.ClickHouse.Port, cHTTP)
-
-	params := url.Values{}
-	params.Add("user", config.ClickHouse.Credentials.User)
-	params.Add("password", config.ClickHouse.Credentials.Password)
-	conn.SetParams(params)
-
-	if err := conn.Ping(); err != nil {
-		return nil, err
+	port, err := strconv.Atoi(cfg.ClickHouse.Port)
+	if err != nil {
+		return nil, fmt.Errorf("invalid port %q: %w", cfg.ClickHouse.Port, err)
 	}
 
+	c, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{fmt.Sprintf("%s:%d", cfg.ClickHouse.Host, port)},
+		Auth: clickhouse.Auth{
+			Database: cfg.ClickHouse.DB,
+			Username: cfg.ClickHouse.Credentials.User,
+			Password: cfg.ClickHouse.Credentials.Password,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open connection: %w", err)
+	}
+
+	if err := c.Ping(context.Background()); err != nil {
+		return nil, fmt.Errorf("ping: %w", err)
+	}
+
+	conn = c
 	return conn, nil
 }

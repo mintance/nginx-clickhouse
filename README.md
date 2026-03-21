@@ -1,143 +1,101 @@
-# nginx-clickhouse &nbsp; [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/intent/tweet?text=Simple%20NGINX%20logs%20parser%20and%20transporter%20to%20ClickHouse%20database.%20&amp;url=https://github.com/mintance/nginx-clickhouse&amp;hashtags=nginx,clickhouse,golang)
+# nginx-clickhouse
 
-[![License: Apache 2](https://img.shields.io/hexpm/l/plug.svg)](https://github.com/mintance/nginx-clickhouse/blob/master/LICENSE)
-![Golang Version](https://img.shields.io/badge/golang-1.5%2B-blue.svg)
-[![Docker Build Status](https://img.shields.io/docker/build/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
+[![Share on X](https://img.shields.io/badge/share-000000?logo=x&logoColor=white)](https://x.com/intent/tweet?text=Simple%20NGINX%20logs%20parser%20and%20transporter%20to%20ClickHouse%20database.&url=https://github.com/mintance/nginx-clickhouse&hashtags=nginx,clickhouse,golang)
+[![Share on Reddit](https://img.shields.io/badge/share-FF4500?logo=reddit&logoColor=white)](https://www.reddit.com/submit?url=https://github.com/mintance/nginx-clickhouse&title=nginx-clickhouse%20-%20NGINX%20logs%20to%20ClickHouse)
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/mintance/nginx-clickhouse.svg)](https://pkg.go.dev/github.com/mintance/nginx-clickhouse)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mintance/nginx-clickhouse)](https://goreportcard.com/report/github.com/mintance/nginx-clickhouse)
+[![CI](https://github.com/mintance/nginx-clickhouse/actions/workflows/test.yml/badge.svg)](https://github.com/mintance/nginx-clickhouse/actions/workflows/test.yml)
+[![License: Apache 2](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/mintance/nginx-clickhouse/blob/master/LICENSE)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
-[![Docker Stars](https://img.shields.io/docker/stars/mintance/nginx-clickhouse.svg)](https://hub.docker.com/r/mintance/nginx-clickhouse/)
 [![GitHub issues](https://img.shields.io/github/issues/mintance/nginx-clickhouse.svg)](https://github.com/mintance/nginx-clickhouse/issues)
 
-Simple nginx logs parser &amp; transporter to ClickHouse database.
+Simple NGINX access log parser and transporter to ClickHouse database. Uses the native TCP protocol for fast, compressed batch inserts.
 
-### How to build from sources
+## Features
 
-#### 1. Install helpers
+- Tails NGINX access logs in real-time
+- Configurable log format parsing via [gonx](https://github.com/satyrius/gonx)
+- Batch inserts into ClickHouse using the [official Go client](https://github.com/ClickHouse/clickhouse-go) (native TCP, LZ4 compression)
+- Prometheus metrics endpoint on `:2112`
+- Configuration via YAML file or environment variables
+- Minimal Docker image (scratch-based)
 
-```sh
-make install-helpers
-```
+## Quick Start
 
-#### 2. Install dependencies
-
-```sh
-make dependencies
-```
-
-#### 3. Build binary file
+### Using Docker
 
 ```sh
-make build
+docker pull mintance/nginx-clickhouse
+
+docker run --rm --net=host --name nginx-clickhouse \
+  -v /var/log/nginx:/logs \
+  -v /path/to/config:/config \
+  -d mintance/nginx-clickhouse
 ```
 
-### How to build Docker image
+### Build from Source
 
-To build image just type this command, and it will compile binary from sources and create Docker image. You don't need to have Go development tools, the [build process will be in Docker](https://medium.com/travis-on-docker/multi-stage-docker-builds-for-creating-tiny-go-images-e0e1867efe5a).
+Requires Go 1.25+.
+
+```sh
+go build -o nginx-clickhouse .
+./nginx-clickhouse -config_path=config/config.yml
+```
+
+### Build Docker Image
+
+No local Go toolchain required -- builds inside Docker using multi-stage build.
 
 ```sh
 make docker
 ```
 
-### How to run
+## How It Works
 
-#### 1. Pull image from Docker Hub (or build from sources)
+1. Tails the NGINX access log file specified in configuration
+2. Buffers incoming log lines in memory
+3. On a configurable interval, parses the buffered lines using the NGINX log format
+4. Batch-inserts parsed entries into ClickHouse via the native TCP protocol
 
-```sh
-docker pull mintance/nginx-clickhouse
-```
+## Configuration
 
-There are always last stable image, it automatically builds when release created.
+Configuration is loaded from a YAML file (default: `config/config.yml`). All values can be overridden with environment variables.
 
-#### 2. Run Docker container
+### Environment Variables
 
-For this example, we include `/var/log/nginx` directory, where we store our logs, and `config` directory where we store `config.yml` file.
+| Variable | Description |
+|---|---|
+| `LOG_PATH` | Path to NGINX access log file |
+| `FLUSH_INTERVAL` | Batch flush interval in seconds |
+| `CLICKHOUSE_HOST` | ClickHouse server hostname |
+| `CLICKHOUSE_PORT` | ClickHouse native TCP port (default: `9000`) |
+| `CLICKHOUSE_DB` | ClickHouse database name |
+| `CLICKHOUSE_TABLE` | ClickHouse table name |
+| `CLICKHOUSE_USER` | ClickHouse username |
+| `CLICKHOUSE_PASSWORD` | ClickHouse password |
+| `NGINX_LOG_TYPE` | NGINX log format name |
+| `NGINX_LOG_FORMAT` | NGINX log format string |
 
-```sh
-docker run --rm --net=host --name nginx-clickhouse -v /var/log/nginx:/logs -v config:/config -d mintance/nginx-clickhouse
-```
+### Full Config Example
 
-### How it works?
-
-Here are described full setting-up example.
-
-#### NGINX log format description
-
-In nginx, there are: [nginx_http_log_module](http://nginx.org/en/docs/http/ngx_http_log_module.html) that writes request logs in the specified format.
-
-They are defined in `/etc/nginx/nginx.conf` file. For example we create `main` log format.
-
-```lua
-http {
-    ...
-     log_format main '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"';
-    ...
-}
-```
-
-After defining this, we can use it in our site config `/etc/nginx/sites-enabled/my-site.conf` inside server section:
-
-```lua
-server {
-  ...
-  access_log /var/log/nginx/my-site-access.log main;
-  ...
-}
-```
-
-Now all what we need, is to create `config.yml` file where we describe our log format, log file path, and ClickHouse credentials. We can also use environment variables for this.
-
-#### ClickHouse table schema example
-
-This is table schema for our example.
-
-```sql
-CREATE TABLE metrics.nginx (
-    RemoteAddr String,
-    RemoteUser String,
-    TimeLocal DateTime,
-    Date Date DEFAULT toDate(TimeLocal),
-    Request String,
-    RequestMethod String,
-    Status Int32,
-    BytesSent Int64,
-    HttpReferer String,
-    HttpUserAgent String,
-    RequestTime Float32,
-    UpstreamConnectTime Float32,
-    UpstreamHeaderTime Float32,
-    UpstreamResponseTime Float32,
-    Https FixedString(2),
-    ConnectionsWaiting Int64,
-    ConnectionsActive Int64
-) ENGINE = MergeTree(Date, (Status, Date), 8192)
-```
-
-#### Config file description
-
-##### 1. Log path & flushing interval
+See [`config-sample.yml`](config-sample.yml) for a ready-to-use template.
 
 ```yaml
 settings:
-  interval: 5 # in seconds
-  log_path: /var/log/nginx/my-site-access.log # path to logfile
-```
+  interval: 5                    # flush interval in seconds
+  log_path: /var/log/nginx/access.log
+  seek_from_end: false           # start reading from end of file
 
-##### 2. ClickHouse credentials and table schema
-
-```yaml
 clickhouse:
- db: metrics # Database name
- table: nginx # Table name
- host: localhost # ClickHouse host (cluster support will be added later)
- port: 8123 # ClicHhouse HTTP port
- credentials:
-  user: default # User name
-  password: # User password
-```
-
-Here we describe in key-value format (key - ClickHouse column, value - log variable) relation between column and log variable.
-
-```yaml
-columns:
+  db: metrics
+  table: nginx
+  host: localhost
+  port: 9000                     # native TCP port
+  credentials:
+    user: default
+    password:
+  columns:                       # ClickHouse column -> NGINX variable mapping
     RemoteAddr: remote_addr
     RemoteUser: remote_user
     TimeLocal: time_local
@@ -146,51 +104,72 @@ columns:
     BytesSent: bytes_sent
     HttpReferer: http_referer
     HttpUserAgent: http_user_agent
-```
 
-##### 3. NGINX log type & format
-
-In `log_format` - we just copy format from nginx.conf
-
-```yaml
 nginx:
   log_type: main
-  log_format: $remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"
+  log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"'
 ```
 
-##### 4. Full config file example
+## NGINX Setup
 
-```yaml
-settings:
-    interval: 5
-    log_path: /var/log/nginx/my-site-access.log
-    seek_from_end: false
-clickhouse:
-    db: metrics
-    table: nginx
-    host: localhost
-    port: 8123
-    credentials:
-        user: default
-        password:
-    columns:
-        RemoteAddr: remote_addr
-        RemoteUser: remote_user
-        TimeLocal: time_local
-        Request: request
-        Status: status
-        BytesSent: bytes_sent
-        HttpReferer: http_referer
-        HttpUserAgent: http_user_agent
-nginx:
-    log_type: main
-    log_format: $remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"
+### 1. Define a Log Format
+
+In `/etc/nginx/nginx.conf`:
+
+```nginx
+http {
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"';
+}
 ```
 
-#### Grafana Dashboard
+### 2. Enable Access Log
 
-After all steps you can build your own grafana dashboards.
+In your site config (`/etc/nginx/sites-enabled/my-site.conf`):
 
-![alt text](https://github.com/mintance/nginx-clickhouse/blob/master/grafana.png)
+```nginx
+server {
+    access_log /var/log/nginx/my-site-access.log main;
+}
+```
 
-![alt text](https://github.com/openbsod/nginx2clickhouse/blob/master/iptv-status-returned.png)
+## ClickHouse Setup
+
+Create a table matching your column mapping:
+
+```sql
+CREATE TABLE metrics.nginx (
+    RemoteAddr    String,
+    RemoteUser    String,
+    TimeLocal     DateTime,
+    Date          Date DEFAULT toDate(TimeLocal),
+    Request       String,
+    Status        Int32,
+    BytesSent     Int64,
+    HttpReferer   String,
+    HttpUserAgent String
+) ENGINE = MergeTree()
+ORDER BY (Status, TimeLocal)
+```
+
+## Prometheus Metrics
+
+Available at `http://localhost:2112/metrics`:
+
+| Metric | Description |
+|---|---|
+| `nginx_clickhouse_lines_processed_total` | Total log lines successfully saved |
+| `nginx_clickhouse_lines_not_processed_total` | Total log lines that failed to save |
+
+## Grafana Dashboard
+
+A pre-built Grafana dashboard is included in [`grafana/dashboard.json`](grafana/dashboard.json). Import it into Grafana to visualize your NGINX metrics.
+
+![Grafana Dashboard](grafana/dashboard.png)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and pull request guidelines.
+
+## License
+
+[Apache License 2.0](LICENSE)
