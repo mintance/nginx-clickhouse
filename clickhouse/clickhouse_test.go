@@ -68,9 +68,6 @@ func TestBuildRowMissingField(t *testing.T) {
 }
 
 func TestBuildRowEmpty(t *testing.T) {
-	cfg := &config.Config{}
-	_ = cfg // ensure config import is used for consistency
-
 	columns := map[string]string{}
 	keys := []string{}
 
@@ -81,5 +78,28 @@ func TestBuildRowEmpty(t *testing.T) {
 
 	if len(row) != 0 {
 		t.Errorf("expected 0 fields for empty columns, got %d", len(row))
+	}
+}
+
+func TestSaveEmptyLogs(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.ClickHouse.Columns = map[string]string{"RemoteAddr": "remote_addr"}
+
+	err := Save(cfg, nil)
+	if err != nil {
+		t.Errorf("Save with nil logs should return nil, got %v", err)
+	}
+}
+
+func TestSaveEmptyColumns(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.ClickHouse.Columns = map[string]string{}
+
+	parser := gonx.NewParser(`$remote_addr`)
+	entry, _ := parser.ParseString(`192.168.1.1`)
+
+	err := Save(cfg, []gonx.Entry{*entry})
+	if err != nil {
+		t.Errorf("Save with empty columns should return nil, got %v", err)
 	}
 }

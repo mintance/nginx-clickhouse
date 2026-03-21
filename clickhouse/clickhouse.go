@@ -24,6 +24,10 @@ var conn driver.Conn
 // Save batch-inserts the parsed log entries into ClickHouse. It reuses an
 // existing connection or establishes a new one based on cfg.
 func Save(cfg *config.Config, logs []gonx.Entry) error {
+	if len(logs) == 0 || len(cfg.ClickHouse.Columns) == 0 {
+		return nil
+	}
+
 	c, err := openConn(cfg)
 	if err != nil {
 		return err

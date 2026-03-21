@@ -146,6 +146,46 @@ func TestSetEnvVariablesPartial(t *testing.T) {
 	}
 }
 
+func TestSetEnvVariablesMaxBufferSize(t *testing.T) {
+	cfg := &Config{}
+	t.Setenv("MAX_BUFFER_SIZE", "5000")
+
+	cfg.SetEnvVariables()
+
+	if cfg.Settings.MaxBufferSize != 5000 {
+		t.Errorf("expected MaxBufferSize=5000, got %d", cfg.Settings.MaxBufferSize)
+	}
+}
+
+func TestReadMaxBufferSize(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+  max_buffer_size: 20000
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+nginx:
+  log_type: main
+  log_format: "$remote_addr"
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if cfg.Settings.MaxBufferSize != 20000 {
+		t.Errorf("expected MaxBufferSize=20000, got %d", cfg.Settings.MaxBufferSize)
+	}
+}
+
 func TestSetEnvVariablesInvalidInterval(t *testing.T) {
 	cfg := &Config{}
 	cfg.Settings.Interval = 5
