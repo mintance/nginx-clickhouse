@@ -54,8 +54,8 @@ make docker
 ## How It Works
 
 1. Tails the NGINX access log file specified in configuration
-2. Buffers incoming log lines in memory
-3. On a configurable interval, parses the buffered lines using the NGINX log format
+2. Buffers incoming log lines in memory (up to `max_buffer_size`)
+3. On a configurable interval (or when the buffer is full), parses the buffered lines using the NGINX log format
 4. Batch-inserts parsed entries into ClickHouse via the native TCP protocol
 
 ## Configuration
@@ -68,6 +68,7 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 |---|---|
 | `LOG_PATH` | Path to NGINX access log file |
 | `FLUSH_INTERVAL` | Batch flush interval in seconds |
+| `MAX_BUFFER_SIZE` | Max log lines to buffer before forcing a flush (default: `10000`) |
 | `CLICKHOUSE_HOST` | ClickHouse server hostname |
 | `CLICKHOUSE_PORT` | ClickHouse native TCP port (default: `9000`) |
 | `CLICKHOUSE_DB` | ClickHouse database name |
@@ -86,6 +87,7 @@ settings:
   interval: 5                    # flush interval in seconds
   log_path: /var/log/nginx/access.log
   seek_from_end: false           # start reading from end of file
+  max_buffer_size: 10000         # flush when buffer exceeds this (prevents memory issues)
 
 clickhouse:
   db: metrics

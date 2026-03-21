@@ -20,6 +20,8 @@ import (
 	"github.com/mintance/nginx-clickhouse/nginx"
 )
 
+const defaultMaxBufferSize = 10000
+
 var (
 	mu   sync.Mutex
 	logs []string
@@ -39,6 +41,10 @@ var (
 func main() {
 	cfg := configParser.Read()
 	cfg.SetEnvVariables()
+
+	if cfg.Settings.MaxBufferSize == 0 {
+		cfg.Settings.MaxBufferSize = defaultMaxBufferSize
+	}
 
 	parser, err := nginx.NewParser(cfg)
 	if err != nil {
@@ -73,35 +79,44 @@ func main() {
 	for line := range t.Lines() {
 		mu.Lock()
 		logs = append(logs, strings.TrimSpace(line.String()))
+		shouldFlush := len(logs) >= cfg.Settings.MaxBufferSize
 		mu.Unlock()
+
+		if shouldFlush {
+			flush(cfg, parser)
+		}
 	}
 }
 
-// flushLoop periodically parses buffered log lines and saves them to ClickHouse.
+// flushLoop periodically flushes buffered log lines to ClickHouse.
 func flushLoop(cfg *configParser.Config, parser *nginx.Parser) {
 	interval := time.Duration(cfg.Settings.Interval) * time.Second
 	for {
 		time.Sleep(interval)
+		flush(cfg, parser)
+	}
+}
 
-		mu.Lock()
-		if len(logs) == 0 {
-			mu.Unlock()
-			continue
-		}
-
-		batch := logs
-		logs = nil
+// flush drains the log buffer and saves entries to ClickHouse.
+func flush(cfg *configParser.Config, parser *nginx.Parser) {
+	mu.Lock()
+	if len(logs) == 0 {
 		mu.Unlock()
+		return
+	}
 
-		logrus.Info("preparing to save ", len(batch), " new log entries")
+	batch := logs
+	logs = nil
+	mu.Unlock()
 
-		entries := nginx.ParseLogs(parser, batch)
-		if err := clickhouse.Save(cfg, entries); err != nil {
-			logrus.Error("can't save logs: ", err)
-			linesNotProcessed.Add(float64(len(batch)))
-		} else {
-			logrus.Info("saved ", len(batch), " new logs")
-			linesProcessed.Add(float64(len(batch)))
-		}
+	logrus.Info("preparing to save ", len(batch), " new log entries")
+
+	entries := nginx.ParseLogs(parser, batch)
+	if err := clickhouse.Save(cfg, entries); err != nil {
+		logrus.Error("can't save logs: ", err)
+		linesNotProcessed.Add(float64(len(batch)))
+	} else {
+		logrus.Info("saved ", len(batch), " new logs")
+		linesProcessed.Add(float64(len(batch)))
 	}
 }

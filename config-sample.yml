@@ -2,7 +2,8 @@
 settings:
   interval: 5 # in seconds
   log_path: logs/test.log # path to logfile
-  seek_from_end: false # start reading from the lasl line (to prevent duplicates after restart)
+  seek_from_end: false # start reading from the last line (to prevent duplicates after restart)
+  max_buffer_size: 10000 # max log lines to buffer before forcing a flush (prevents memory issues)
 # ClickHouse credentials
 clickhouse:
  db: metrics

@@ -26,9 +26,10 @@ type Config struct {
 
 // SettingsConfig holds general application settings.
 type SettingsConfig struct {
-	Interval    int    `yaml:"interval"`
-	LogPath     string `yaml:"log_path"`
-	SeekFromEnd bool   `yaml:"seek_from_end"`
+	Interval      int    `yaml:"interval"`
+	LogPath       string `yaml:"log_path"`
+	SeekFromEnd   bool   `yaml:"seek_from_end"`
+	MaxBufferSize int    `yaml:"max_buffer_size"`
 }
 
 // ClickHouseConfig holds ClickHouse connection and schema settings.
@@ -94,6 +95,14 @@ func (c *Config) SetEnvVariables() {
 			logrus.Errorf("invalid FLUSH_INTERVAL %q: %v", v, err)
 		}
 		c.Settings.Interval = interval
+	}
+
+	if v := os.Getenv("MAX_BUFFER_SIZE"); v != "" {
+		size, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid MAX_BUFFER_SIZE %q: %v", v, err)
+		}
+		c.Settings.MaxBufferSize = size
 	}
 
 	if v := os.Getenv("CLICKHOUSE_HOST"); v != "" {
