@@ -76,6 +76,8 @@ type ClickHouseConfig struct {
 	TLS                   bool              `yaml:"tls"`
 	TLSInsecureSkipVerify bool              `yaml:"tls_insecure_skip_verify"`
 	CACert                string            `yaml:"ca_cert"`
+	TLSCertPath           string            `yaml:"tls_cert_path"`
+	TLSKeyPath            string            `yaml:"tls_key_path"`
 	Columns               map[string]string `yaml:"columns"`
 	Credentials           CredentialsConfig `yaml:"credentials"`
 }
@@ -199,6 +201,12 @@ func (c *Config) SetEnvVariables() {
 	}
 	if v := os.Getenv("CLICKHOUSE_CA_CERT"); v != "" {
 		c.ClickHouse.CACert = v
+	}
+	if v := os.Getenv("CLICKHOUSE_TLS_CERT_PATH"); v != "" {
+		c.ClickHouse.TLSCertPath = v
+	}
+	if v := os.Getenv("CLICKHOUSE_TLS_KEY_PATH"); v != "" {
+		c.ClickHouse.TLSKeyPath = v
 	}
 
 	if v := os.Getenv("NGINX_LOG_TYPE"); v != "" {

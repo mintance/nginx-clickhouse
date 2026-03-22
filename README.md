@@ -98,7 +98,9 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `CLICKHOUSE_PASSWORD` | ClickHouse password |
 | `CLICKHOUSE_TLS` | Enable TLS (`true`/`false`) |
 | `CLICKHOUSE_TLS_SKIP_VERIFY` | Skip TLS certificate verification (`true`/`false`) |
-| `CLICKHOUSE_CA_CERT` | Path to custom CA certificate file |
+| `CLICKHOUSE_CA_CERT` | Path to CA certificate file |
+| `CLICKHOUSE_TLS_CERT_PATH` | Path to client TLS certificate (for mTLS) |
+| `CLICKHOUSE_TLS_KEY_PATH` | Path to client TLS private key (for mTLS) |
 | `NGINX_LOG_TYPE` | NGINX log format name |
 | `NGINX_LOG_FORMAT` | NGINX log format string |
 | `NGINX_LOG_FORMAT_TYPE` | Log format type: `text` (default) or `json` |
@@ -137,6 +139,8 @@ clickhouse:
   # tls: true                    # enable TLS
   # tls_insecure_skip_verify: false
   # ca_cert: /etc/ssl/clickhouse-ca.pem
+  # tls_cert_path: /etc/ssl/client.crt  # client cert for mTLS
+  # tls_key_path: /etc/ssl/client.key
   credentials:
     user: default
     password:
@@ -267,11 +271,13 @@ clickhouse:
   host: your-cluster.clickhouse.cloud
   port: 9440
   tls: true
-  # tls_insecure_skip_verify: true  # only for self-signed certs
-  # ca_cert: /etc/ssl/custom-ca.pem # custom CA certificate
+  # tls_insecure_skip_verify: true    # only for self-signed certs
+  # ca_cert: /etc/ssl/custom-ca.pem   # custom CA certificate
+  # tls_cert_path: /etc/ssl/client.crt  # client certificate (mTLS)
+  # tls_key_path: /etc/ssl/client.key   # client private key (mTLS)
 ```
 
-The default ClickHouse secure native port is `9440`. Set `tls: true` to enable encrypted connections.
+The default ClickHouse secure native port is `9440`. Set `tls: true` to enable encrypted connections. For mutual TLS (mTLS), provide both `tls_cert_path` and `tls_key_path`.
 
 ### Connection Recovery
 

@@ -159,6 +159,13 @@ func (c *Client) connect() error {
 			}
 			tlsCfg.RootCAs = pool
 		}
+		if c.cfg.ClickHouse.TLSCertPath != "" && c.cfg.ClickHouse.TLSKeyPath != "" {
+			cert, err := tls.LoadX509KeyPair(c.cfg.ClickHouse.TLSCertPath, c.cfg.ClickHouse.TLSKeyPath)
+			if err != nil {
+				return fmt.Errorf("load client certificate: %w", err)
+			}
+			tlsCfg.Certificates = []tls.Certificate{cert}
+		}
 		opts.TLS = tlsCfg
 	}
 
