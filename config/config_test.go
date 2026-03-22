@@ -373,6 +373,8 @@ clickhouse:
   tls: true
   tls_insecure_skip_verify: false
   ca_cert: /etc/ssl/ca.pem
+  tls_cert_path: /etc/ssl/client.crt
+  tls_key_path: /etc/ssl/client.key
 nginx:
   log_type: main
   log_format: "$remote_addr"
@@ -398,6 +400,12 @@ nginx:
 	if cfg.ClickHouse.Port != "9440" {
 		t.Errorf("expected Port=9440, got %s", cfg.ClickHouse.Port)
 	}
+	if cfg.ClickHouse.TLSCertPath != "/etc/ssl/client.crt" {
+		t.Errorf("expected TLSCertPath=/etc/ssl/client.crt, got %s", cfg.ClickHouse.TLSCertPath)
+	}
+	if cfg.ClickHouse.TLSKeyPath != "/etc/ssl/client.key" {
+		t.Errorf("expected TLSKeyPath=/etc/ssl/client.key, got %s", cfg.ClickHouse.TLSKeyPath)
+	}
 }
 
 func TestSetEnvVariablesTLS(t *testing.T) {
@@ -406,6 +414,8 @@ func TestSetEnvVariablesTLS(t *testing.T) {
 	t.Setenv("CLICKHOUSE_TLS", "true")
 	t.Setenv("CLICKHOUSE_TLS_SKIP_VERIFY", "true")
 	t.Setenv("CLICKHOUSE_CA_CERT", "/custom/ca.pem")
+	t.Setenv("CLICKHOUSE_TLS_CERT_PATH", "/custom/client.crt")
+	t.Setenv("CLICKHOUSE_TLS_KEY_PATH", "/custom/client.key")
 
 	cfg.SetEnvVariables()
 
@@ -417,6 +427,12 @@ func TestSetEnvVariablesTLS(t *testing.T) {
 	}
 	if cfg.ClickHouse.CACert != "/custom/ca.pem" {
 		t.Errorf("expected CACert=/custom/ca.pem, got %s", cfg.ClickHouse.CACert)
+	}
+	if cfg.ClickHouse.TLSCertPath != "/custom/client.crt" {
+		t.Errorf("expected TLSCertPath=/custom/client.crt, got %s", cfg.ClickHouse.TLSCertPath)
+	}
+	if cfg.ClickHouse.TLSKeyPath != "/custom/client.key" {
+		t.Errorf("expected TLSKeyPath=/custom/client.key, got %s", cfg.ClickHouse.TLSKeyPath)
 	}
 }
 
