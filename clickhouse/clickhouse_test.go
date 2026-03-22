@@ -208,6 +208,37 @@ func TestBuildRowStatusClassVariants(t *testing.T) {
 	}
 }
 
+func TestBuildRowStatusClassInvalid(t *testing.T) {
+	tests := []struct {
+		name   string
+		status string
+	}{
+		{"non-numeric", "OK"},
+		{"zero prefix", "099"},
+		{"six prefix", "600"},
+		{"empty", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			columns := map[string]string{"StatusClass": "_status_class"}
+			keys := []string{"StatusClass"}
+
+			parser := gonx.NewParser(`$status`)
+			entry, _ := parser.ParseString(tt.status)
+
+			row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+
+			if len(row) != 1 {
+				t.Fatalf("expected 1 field, got %d", len(row))
+			}
+			if row[0] != "" {
+				t.Errorf("expected empty string for invalid status %q, got %v", tt.status, row[0])
+			}
+		})
+	}
+}
+
 func TestBuildRowExtraEnrichment(t *testing.T) {
 	columns := map[string]string{
 		"MyTag": "_extra.my_tag",

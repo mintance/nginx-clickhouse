@@ -51,6 +51,7 @@ func ParseField(key, value string) any {
 		val, err := strconv.Atoi(value)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{"field": key, "value": value}).WithError(err).Error("cannot convert to int")
+			return value
 		}
 		return val
 
@@ -59,6 +60,7 @@ func ParseField(key, value string) any {
 		val, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{"field": key, "value": value}).WithError(err).Error("cannot convert to float")
+			return value
 		}
 		return val
 

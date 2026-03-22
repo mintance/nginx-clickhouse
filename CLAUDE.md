@@ -75,11 +75,11 @@ CI will reject PRs that fail any of these checks.
 ## Testing
 
 ```bash
-go test ./... -v -race              # 47 unit tests across 6 packages
+go test ./... -v -race              # 68 unit tests across 6 packages
 go test ./clickhouse/ -v -tags integration  # Integration tests (requires ClickHouse)
 ```
 
-Packages with tests: retry (7), buffer (10), circuitbreaker (5), clickhouse (8 unit + 4 integration), config (12), nginx (10).
+Packages with tests: retry (7), buffer (10), circuitbreaker (5), clickhouse (15 unit + 4 integration), config (16), nginx (15).
 
 ## CI/CD
 

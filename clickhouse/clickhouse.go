@@ -205,6 +205,9 @@ func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentC
 		if err != nil || len(status) == 0 {
 			return ""
 		}
+		if status[0] < '1' || status[0] > '5' {
+			return ""
+		}
 		return string(status[0]) + "xx"
 	default:
 		if strings.HasPrefix(field, "_extra.") {
