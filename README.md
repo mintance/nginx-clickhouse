@@ -69,6 +69,9 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `LOG_PATH` | Path to NGINX access log file |
 | `FLUSH_INTERVAL` | Batch flush interval in seconds |
 | `MAX_BUFFER_SIZE` | Max log lines to buffer before forcing a flush (default: `10000`) |
+| `RETRY_MAX` | Max retry attempts on ClickHouse failure (default: `3`) |
+| `RETRY_BACKOFF_INITIAL` | Initial retry backoff in seconds (default: `1`) |
+| `RETRY_BACKOFF_MAX` | Maximum retry backoff in seconds (default: `30`) |
 | `CLICKHOUSE_HOST` | ClickHouse server hostname |
 | `CLICKHOUSE_PORT` | ClickHouse native TCP port (default: `9000`) |
 | `CLICKHOUSE_DB` | ClickHouse database name |
@@ -88,6 +91,10 @@ settings:
   log_path: /var/log/nginx/access.log
   seek_from_end: false           # start reading from end of file
   max_buffer_size: 10000         # flush when buffer exceeds this (prevents memory issues)
+  retry:
+    max_retries: 3
+    backoff_initial_secs: 1
+    backoff_max_secs: 30
 
 clickhouse:
   db: metrics
@@ -161,6 +168,64 @@ Available at `http://localhost:2112/metrics`:
 |---|---|
 | `nginx_clickhouse_lines_processed_total` | Total log lines successfully saved |
 | `nginx_clickhouse_lines_not_processed_total` | Total log lines that failed to save |
+| `nginx_clickhouse_lines_read_total` | Total lines read from the log file |
+| `nginx_clickhouse_parse_errors_total` | Total lines that failed to parse |
+| `nginx_clickhouse_buffer_size` | Current number of lines in the buffer |
+| `nginx_clickhouse_clickhouse_up` | Whether ClickHouse is reachable (1/0) |
+| `nginx_clickhouse_flush_duration_seconds` | Time spent per flush (histogram) |
+| `nginx_clickhouse_batch_size` | Number of entries per flush (histogram) |
+
+## Reliability
+
+### Retry with Backoff
+
+When a ClickHouse write fails, the client retries with exponential backoff and full jitter. Configure via:
+
+- `max_retries` — number of retry attempts (default: 3, set to 0 to disable)
+- `backoff_initial_secs` — initial delay between retries (default: 1s)
+- `backoff_max_secs` — maximum delay cap (default: 30s)
+
+The backoff doubles each attempt with random jitter to avoid thundering herd.
+
+### Connection Recovery
+
+If the ClickHouse connection drops, it is automatically reset and re-established on the next retry attempt. No manual intervention needed.
+
+### Graceful Shutdown
+
+On `SIGTERM` or `SIGINT`, the service:
+1. Flushes any remaining buffered log lines to ClickHouse
+2. Closes the ClickHouse connection
+3. Exits cleanly
+
+This ensures no data loss during deployments or container restarts.
+
+### Buffer Limits
+
+The in-memory buffer is capped at `max_buffer_size` (default: 10,000 lines). When the buffer is full, it flushes immediately rather than waiting for the next interval.
+
+### Health Check
+
+`GET /healthz` on port 2112 returns:
+- `200 OK` — ClickHouse connection is alive
+- `503 Service Unavailable` — ClickHouse is unreachable
+
+Use for Kubernetes liveness/readiness probes:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 2112
+  initialDelaySeconds: 10
+  periodSeconds: 30
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 2112
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
 
 ## Grafana Dashboard
 
