@@ -8,6 +8,61 @@ import (
 	"github.com/mintance/nginx-clickhouse/config"
 )
 
+func TestNewClient(t *testing.T) {
+	cfg := &config.Config{}
+	client := NewClient(cfg)
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+	if client.conn != nil {
+		t.Error("expected conn to be nil on new client")
+	}
+}
+
+func TestSaveEmptyLogs(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.ClickHouse.Columns = map[string]string{"RemoteAddr": "remote_addr"}
+	client := NewClient(cfg)
+
+	err := client.Save(nil)
+	if err != nil {
+		t.Errorf("Save with nil logs should return nil, got %v", err)
+	}
+}
+
+func TestSaveEmptyColumns(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.ClickHouse.Columns = map[string]string{}
+	client := NewClient(cfg)
+
+	parser := gonx.NewParser(`$remote_addr`)
+	entry, _ := parser.ParseString(`192.168.1.1`)
+
+	err := client.Save([]gonx.Entry{*entry})
+	if err != nil {
+		t.Errorf("Save with empty columns should return nil, got %v", err)
+	}
+}
+
+func TestHealthyNoConnection(t *testing.T) {
+	cfg := &config.Config{}
+	client := NewClient(cfg)
+
+	if client.Healthy() {
+		t.Error("expected Healthy to return false when conn is nil")
+	}
+}
+
+func TestCloseNoConnection(t *testing.T) {
+	cfg := &config.Config{}
+	client := NewClient(cfg)
+
+	err := client.Close()
+	if err != nil {
+		t.Errorf("Close with nil conn should return nil, got %v", err)
+	}
+}
+
 func TestBuildRow(t *testing.T) {
 	columns := map[string]string{
 		"RemoteAddr": "remote_addr",
@@ -78,28 +133,5 @@ func TestBuildRowEmpty(t *testing.T) {
 
 	if len(row) != 0 {
 		t.Errorf("expected 0 fields for empty columns, got %d", len(row))
-	}
-}
-
-func TestSaveEmptyLogs(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.ClickHouse.Columns = map[string]string{"RemoteAddr": "remote_addr"}
-
-	err := Save(cfg, nil)
-	if err != nil {
-		t.Errorf("Save with nil logs should return nil, got %v", err)
-	}
-}
-
-func TestSaveEmptyColumns(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.ClickHouse.Columns = map[string]string{}
-
-	parser := gonx.NewParser(`$remote_addr`)
-	entry, _ := parser.ParseString(`192.168.1.1`)
-
-	err := Save(cfg, []gonx.Entry{*entry})
-	if err != nil {
-		t.Errorf("Save with empty columns should return nil, got %v", err)
 	}
 }

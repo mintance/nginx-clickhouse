@@ -51,6 +51,8 @@ func main() {
 		logrus.Fatal("can't parse nginx log format: ", err)
 	}
 
+	client := clickhouse.NewClient(cfg)
+
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
 		if err := http.ListenAndServe(":2112", nil); err != nil {
@@ -74,7 +76,7 @@ func main() {
 		logrus.Fatal("can't tail log file: ", err)
 	}
 
-	go flushLoop(cfg, parser)
+	go flushLoop(cfg, parser, client)
 
 	for line := range t.Lines() {
 		mu.Lock()
@@ -83,22 +85,22 @@ func main() {
 		mu.Unlock()
 
 		if shouldFlush {
-			flush(cfg, parser)
+			flush(parser, client)
 		}
 	}
 }
 
 // flushLoop periodically flushes buffered log lines to ClickHouse.
-func flushLoop(cfg *configParser.Config, parser *nginx.Parser) {
+func flushLoop(cfg *configParser.Config, parser *nginx.Parser, client *clickhouse.Client) {
 	interval := time.Duration(cfg.Settings.Interval) * time.Second
 	for {
 		time.Sleep(interval)
-		flush(cfg, parser)
+		flush(parser, client)
 	}
 }
 
 // flush drains the log buffer and saves entries to ClickHouse.
-func flush(cfg *configParser.Config, parser *nginx.Parser) {
+func flush(parser *nginx.Parser, client *clickhouse.Client) {
 	mu.Lock()
 	if len(logs) == 0 {
 		mu.Unlock()
@@ -112,7 +114,7 @@ func flush(cfg *configParser.Config, parser *nginx.Parser) {
 	logrus.Info("preparing to save ", len(batch), " new log entries")
 
 	entries := nginx.ParseLogs(parser, batch)
-	if err := clickhouse.Save(cfg, entries); err != nil {
+	if err := client.Save(entries); err != nil {
 		logrus.Error("can't save logs: ", err)
 		linesNotProcessed.Add(float64(len(batch)))
 	} else {

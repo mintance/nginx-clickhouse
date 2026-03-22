@@ -113,8 +113,9 @@ func TestIntegrationSave(t *testing.T) {
 	setupTestDB(t)
 	defer teardownTestDB(t)
 
-	conn = nil
 	cfg := testConfig()
+	client := NewClient(cfg)
+	defer client.Close()
 
 	parser, err := nginx.NewParser(cfg)
 	if err != nil {
@@ -131,7 +132,7 @@ func TestIntegrationSave(t *testing.T) {
 		t.Fatalf("expected 2 parsed entries, got %d", len(entries))
 	}
 
-	if err := Save(cfg, entries); err != nil {
+	if err := client.Save(entries); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
@@ -161,8 +162,9 @@ func TestIntegrationSaveEmpty(t *testing.T) {
 	setupTestDB(t)
 	defer teardownTestDB(t)
 
-	conn = nil
 	cfg := testConfig()
+	client := NewClient(cfg)
+	defer client.Close()
 
 	parser, err := nginx.NewParser(cfg)
 	if err != nil {
@@ -170,7 +172,7 @@ func TestIntegrationSaveEmpty(t *testing.T) {
 	}
 
 	entries := nginx.ParseLogs(parser, []string{})
-	if err := Save(cfg, entries); err != nil {
+	if err := client.Save(entries); err != nil {
 		t.Fatalf("Save with empty entries should not fail: %v", err)
 	}
 }
@@ -179,8 +181,9 @@ func TestIntegrationSaveMultipleBatches(t *testing.T) {
 	setupTestDB(t)
 	defer teardownTestDB(t)
 
-	conn = nil
 	cfg := testConfig()
+	client := NewClient(cfg)
+	defer client.Close()
 
 	parser, err := nginx.NewParser(cfg)
 	if err != nil {
@@ -190,7 +193,7 @@ func TestIntegrationSaveMultipleBatches(t *testing.T) {
 	entries1 := nginx.ParseLogs(parser, []string{
 		`192.168.1.1 - user1 [10/Oct/2000:13:55:36 -0700] "GET /page1 HTTP/1.0" 200 1024 "-" "Mozilla/5.0"`,
 	})
-	if err := Save(cfg, entries1); err != nil {
+	if err := client.Save(entries1); err != nil {
 		t.Fatalf("first Save: %v", err)
 	}
 
@@ -198,7 +201,7 @@ func TestIntegrationSaveMultipleBatches(t *testing.T) {
 		`10.0.0.1 - user2 [10/Oct/2000:13:55:37 -0700] "GET /page2 HTTP/1.1" 404 512 "-" "curl/7.68.0"`,
 		`172.16.0.1 - - [10/Oct/2000:13:55:38 -0700] "POST /api HTTP/1.1" 500 256 "-" "Python/3.9"`,
 	})
-	if err := Save(cfg, entries2); err != nil {
+	if err := client.Save(entries2); err != nil {
 		t.Fatalf("second Save: %v", err)
 	}
 
@@ -227,20 +230,32 @@ func TestIntegrationConnectionReuse(t *testing.T) {
 	setupTestDB(t)
 	defer teardownTestDB(t)
 
-	conn = nil
 	cfg := testConfig()
+	client := NewClient(cfg)
+	defer client.Close()
 
-	c1, err := openConn(cfg)
+	parser, err := nginx.NewParser(cfg)
 	if err != nil {
-		t.Fatalf("first openConn: %v", err)
+		t.Fatalf("create parser: %v", err)
 	}
 
-	c2, err := openConn(cfg)
-	if err != nil {
-		t.Fatalf("second openConn: %v", err)
+	entries := nginx.ParseLogs(parser, []string{
+		`192.168.1.1 - frank [10/Oct/2000:13:55:36 -0700] "GET /index.html HTTP/1.0" 200 2326 "https://example.com" "Mozilla/5.0"`,
+	})
+
+	if err := client.Save(entries); err != nil {
+		t.Fatalf("first Save: %v", err)
 	}
 
-	if c1 != c2 {
-		t.Error("expected same connection to be reused")
+	if !client.Healthy() {
+		t.Error("expected Healthy to return true after successful Save")
+	}
+
+	if err := client.Save(entries); err != nil {
+		t.Fatalf("second Save: %v", err)
+	}
+
+	if !client.Healthy() {
+		t.Error("expected Healthy to remain true after second Save")
 	}
 }
