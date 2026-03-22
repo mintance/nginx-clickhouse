@@ -17,7 +17,14 @@ Simple NGINX access log parser and transporter to ClickHouse database. Uses the 
 - Tails NGINX access logs in real-time
 - Configurable log format parsing via [gonx](https://github.com/satyrius/gonx)
 - Batch inserts into ClickHouse using the [official Go client](https://github.com/ClickHouse/clickhouse-go) (native TCP, LZ4 compression)
-- Prometheus metrics endpoint on `:2112`
+- **Retry with exponential backoff** and full jitter on ClickHouse failures
+- **Automatic connection recovery** — reconnects transparently after outages
+- **Optional disk buffer** with segment files for crash recovery (at-least-once delivery)
+- **Circuit breaker** to fast-fail when ClickHouse is persistently down
+- **Graceful shutdown** — flushes buffer on SIGTERM/SIGINT
+- `/healthz` endpoint for Kubernetes liveness/readiness probes
+- Prometheus metrics: buffer size, flush latency, parse errors, circuit breaker state
+- Structured JSON logging
 - Configuration via YAML file or environment variables
 - Minimal Docker image (scratch-based)
 
@@ -31,6 +38,7 @@ docker pull mintance/nginx-clickhouse
 docker run --rm --net=host --name nginx-clickhouse \
   -v /var/log/nginx:/logs \
   -v /path/to/config:/config \
+  -v /var/lib/nginx-clickhouse:/data \
   -d mintance/nginx-clickhouse
 ```
 
@@ -53,10 +61,12 @@ make docker
 
 ## How It Works
 
-1. Tails the NGINX access log file specified in configuration
-2. Buffers incoming log lines in memory (up to `max_buffer_size`)
-3. On a configurable interval (or when the buffer is full), parses the buffered lines using the NGINX log format
-4. Batch-inserts parsed entries into ClickHouse via the native TCP protocol
+1. On startup, replays any unprocessed disk buffer segments from a previous crash (if disk buffer enabled)
+2. Tails the NGINX access log file specified in configuration
+3. Buffers incoming log lines in memory or on disk (up to `max_buffer_size`)
+4. On a configurable interval (or when the buffer is full), parses the buffered lines using the NGINX log format
+5. Batch-inserts parsed entries into ClickHouse via the native TCP protocol, with automatic retry on failure
+6. On shutdown (SIGTERM/SIGINT), flushes remaining buffer before exiting
 
 ## Configuration
 
@@ -276,6 +286,15 @@ readinessProbe:
     port: 2112
   initialDelaySeconds: 5
   periodSeconds: 10
+```
+
+## Logging
+
+All logs are emitted as structured JSON (via logrus), making them easy to parse, ship, and alert on:
+
+```json
+{"entries":150,"level":"info","msg":"saved log entries","time":"2026-03-22T12:00:00Z"}
+{"error":"connection refused","level":"error","msg":"can't save logs","time":"2026-03-22T12:00:05Z"}
 ```
 
 ## Grafana Dashboard
