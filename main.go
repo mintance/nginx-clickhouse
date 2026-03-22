@@ -36,6 +36,34 @@ var (
 		Name: "nginx_clickhouse_lines_not_processed_total",
 		Help: "The total number of log lines which were not processed",
 	})
+	linesRead = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_lines_read_total",
+		Help: "Total lines read from the log file",
+	})
+	parseErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_parse_errors_total",
+		Help: "Total lines that failed to parse",
+	})
+
+	bufferSize = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "nginx_clickhouse_buffer_size",
+		Help: "Current number of lines in the buffer",
+	})
+	clickhouseUp = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "nginx_clickhouse_clickhouse_up",
+		Help: "Whether ClickHouse is reachable (1=up, 0=down)",
+	})
+
+	flushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "nginx_clickhouse_flush_duration_seconds",
+		Help:    "Time spent flushing a batch (parse + save)",
+		Buckets: prometheus.DefBuckets,
+	})
+	batchSize = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "nginx_clickhouse_batch_size",
+		Help:    "Number of log entries per flush",
+		Buckets: []float64{10, 50, 100, 500, 1000, 5000, 10000},
+	})
 )
 
 func main() {
@@ -79,8 +107,10 @@ func main() {
 	go flushLoop(cfg, parser, client)
 
 	for line := range t.Lines() {
+		linesRead.Inc()
 		mu.Lock()
 		logs = append(logs, strings.TrimSpace(line.String()))
+		bufferSize.Set(float64(len(logs)))
 		shouldFlush := len(logs) >= cfg.Settings.MaxBufferSize
 		mu.Unlock()
 
@@ -109,16 +139,30 @@ func flush(parser *nginx.Parser, client *clickhouse.Client) {
 
 	batch := logs
 	logs = nil
+	bufferSize.Set(0)
 	mu.Unlock()
+
+	start := time.Now()
 
 	logrus.Info("preparing to save ", len(batch), " new log entries")
 
 	entries := nginx.ParseLogs(parser, batch)
+
+	parseErrs := float64(len(batch) - len(entries))
+	if parseErrs > 0 {
+		parseErrors.Add(parseErrs)
+	}
+	batchSize.Observe(float64(len(entries)))
+
 	if err := client.Save(entries); err != nil {
 		logrus.Error("can't save logs: ", err)
 		linesNotProcessed.Add(float64(len(batch)))
+		clickhouseUp.Set(0)
 	} else {
 		logrus.Info("saved ", len(batch), " new logs")
 		linesProcessed.Add(float64(len(batch)))
+		clickhouseUp.Set(1)
 	}
+
+	flushDuration.Observe(time.Since(start).Seconds())
 }
