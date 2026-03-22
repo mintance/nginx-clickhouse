@@ -368,7 +368,7 @@ func TestSetEnvVariablesInvalidInterval(t *testing.T) {
 
 	cfg.SetEnvVariables()
 
-	if cfg.Settings.Interval != 0 {
-		t.Errorf("expected Interval=0 after invalid conversion, got %d", cfg.Settings.Interval)
+	if cfg.Settings.Interval != 5 {
+		t.Errorf("expected Interval=5 (unchanged) after invalid conversion, got %d", cfg.Settings.Interval)
 	}
 }

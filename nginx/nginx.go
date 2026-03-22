@@ -56,7 +56,7 @@ func ParseField(key, value string) any {
 
 	case "request_time", "upstream_connect_time", "upstream_header_time",
 		"upstream_response_time", "msec":
-		val, err := strconv.ParseFloat(value, 32)
+		val, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{"field": key, "value": value}).WithError(err).Error("cannot convert to float")
 		}

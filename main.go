@@ -217,6 +217,13 @@ func flushLoop(cfg *configParser.Config, buf buffer.Buffer, parser *nginx.Parser
 
 // flush drains the log buffer and saves entries to ClickHouse.
 func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker) {
+	// Circuit breaker check BEFORE draining the buffer to avoid data loss.
+	if cb != nil && !cb.Allow() {
+		logrus.Warn("circuit breaker open, skipping flush")
+		cbRejections.Inc()
+		return
+	}
+
 	lines, err := buf.ReadAll()
 	if err != nil {
 		logrus.WithError(err).Error("buffer read failed")
@@ -226,14 +233,6 @@ func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, c
 		return
 	}
 	bufferSize.Set(0)
-
-	// Circuit breaker check.
-	if cb != nil && !cb.Allow() {
-		logrus.Warn("circuit breaker open, skipping flush")
-		cbRejections.Inc()
-		linesNotProcessed.Add(float64(len(lines)))
-		return
-	}
 
 	start := time.Now()
 
@@ -255,6 +254,14 @@ func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, c
 			cb.RecordFailure()
 			updateCBState(cb)
 		}
+
+		// Write lines back into the buffer so they can be retried next flush.
+		for _, line := range lines {
+			if writeErr := buf.Write(line); writeErr != nil {
+				logrus.WithError(writeErr).Warn("failed to re-buffer line after save failure")
+			}
+		}
+		bufferSize.Set(float64(buf.Len()))
 	} else {
 		logrus.WithField("entries", len(lines)).Info("saved log entries")
 		linesProcessed.Add(float64(len(lines)))

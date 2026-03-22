@@ -117,40 +117,45 @@ func (c *Config) SetEnvVariables() {
 		interval, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid FLUSH_INTERVAL %q: %v", v, err)
+		} else {
+			c.Settings.Interval = interval
 		}
-		c.Settings.Interval = interval
 	}
 
 	if v := os.Getenv("MAX_BUFFER_SIZE"); v != "" {
 		size, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid MAX_BUFFER_SIZE %q: %v", v, err)
+		} else {
+			c.Settings.MaxBufferSize = size
 		}
-		c.Settings.MaxBufferSize = size
 	}
 
 	if v := os.Getenv("RETRY_MAX"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid RETRY_MAX %q: %v", v, err)
+		} else {
+			c.Settings.Retry.MaxRetries = n
 		}
-		c.Settings.Retry.MaxRetries = n
 	}
 
 	if v := os.Getenv("RETRY_BACKOFF_INITIAL"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid RETRY_BACKOFF_INITIAL %q: %v", v, err)
+		} else {
+			c.Settings.Retry.BackoffInitialSecs = n
 		}
-		c.Settings.Retry.BackoffInitialSecs = n
 	}
 
 	if v := os.Getenv("RETRY_BACKOFF_MAX"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid RETRY_BACKOFF_MAX %q: %v", v, err)
+		} else {
+			c.Settings.Retry.BackoffMaxSecs = n
 		}
-		c.Settings.Retry.BackoffMaxSecs = n
 	}
 
 	if v := os.Getenv("CLICKHOUSE_HOST"); v != "" {
@@ -189,8 +194,9 @@ func (c *Config) SetEnvVariables() {
 		maxBytes, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
 			logrus.Errorf("invalid BUFFER_MAX_DISK_BYTES %q: %v", v, err)
+		} else {
+			c.Settings.Buffer.MaxDiskBytes = maxBytes
 		}
-		c.Settings.Buffer.MaxDiskBytes = maxBytes
 	}
 
 	if v := os.Getenv("CIRCUIT_BREAKER_ENABLED"); v != "" {
@@ -200,14 +206,16 @@ func (c *Config) SetEnvVariables() {
 		threshold, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid CIRCUIT_BREAKER_THRESHOLD %q: %v", v, err)
+		} else {
+			c.Settings.CircuitBreaker.Threshold = threshold
 		}
-		c.Settings.CircuitBreaker.Threshold = threshold
 	}
 	if v := os.Getenv("CIRCUIT_BREAKER_COOLDOWN"); v != "" {
 		cooldown, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid CIRCUIT_BREAKER_COOLDOWN %q: %v", v, err)
+		} else {
+			c.Settings.CircuitBreaker.CooldownSecs = cooldown
 		}
-		c.Settings.CircuitBreaker.CooldownSecs = cooldown
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -65,8 +66,19 @@ func NewDiskBuffer(dir string, maxBytes int64) (*DiskBuffer, error) {
 		f.Close()
 	}
 
-	// Set segment counter past any existing segments.
-	b.segmentCounter = len(segments)
+	// Derive segment counter from the highest existing segment number to
+	// avoid filename collisions after a crash where segments were partially
+	// cleaned up.
+	if len(segments) > 0 {
+		last := filepath.Base(segments[len(segments)-1])
+		numStr := strings.TrimPrefix(last, segmentPrefix)
+		numStr = strings.TrimSuffix(numStr, segmentSuffix)
+		if n, err := strconv.Atoi(numStr); err == nil {
+			b.segmentCounter = n + 1
+		} else {
+			b.segmentCounter = len(segments)
+		}
+	}
 
 	return b, nil
 }
@@ -79,7 +91,7 @@ func (b *DiskBuffer) Write(line string) error {
 
 	data := []byte(line + "\n")
 
-	if b.currentBytes+int64(len(data)) > b.maxBytes {
+	if b.maxBytes > 0 && b.currentBytes+int64(len(data)) > b.maxBytes {
 		return ErrBufferFull
 	}
 
