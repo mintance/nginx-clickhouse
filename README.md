@@ -72,6 +72,12 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `RETRY_MAX` | Max retry attempts on ClickHouse failure (default: `3`) |
 | `RETRY_BACKOFF_INITIAL` | Initial retry backoff in seconds (default: `1`) |
 | `RETRY_BACKOFF_MAX` | Maximum retry backoff in seconds (default: `30`) |
+| `BUFFER_TYPE` | Buffer type: `memory` (default) or `disk` |
+| `BUFFER_DISK_PATH` | Directory for disk buffer segments |
+| `BUFFER_MAX_DISK_BYTES` | Max disk usage for buffer in bytes |
+| `CIRCUIT_BREAKER_ENABLED` | Enable circuit breaker (`true`/`false`) |
+| `CIRCUIT_BREAKER_THRESHOLD` | Consecutive failures before opening (default: `5`) |
+| `CIRCUIT_BREAKER_COOLDOWN` | Seconds before half-open probe (default: `60`) |
 | `CLICKHOUSE_HOST` | ClickHouse server hostname |
 | `CLICKHOUSE_PORT` | ClickHouse native TCP port (default: `9000`) |
 | `CLICKHOUSE_DB` | ClickHouse database name |
@@ -95,6 +101,14 @@ settings:
     max_retries: 3
     backoff_initial_secs: 1
     backoff_max_secs: 30
+  buffer:
+    type: memory                 # "memory" (default) or "disk"
+    # disk_path: /var/lib/nginx-clickhouse/buffer
+    # max_disk_bytes: 1073741824 # 1GB
+  circuit_breaker:
+    enabled: false
+    threshold: 5
+    cooldown_secs: 60
 
 clickhouse:
   db: metrics
@@ -174,6 +188,8 @@ Available at `http://localhost:2112/metrics`:
 | `nginx_clickhouse_clickhouse_up` | Whether ClickHouse is reachable (1/0) |
 | `nginx_clickhouse_flush_duration_seconds` | Time spent per flush (histogram) |
 | `nginx_clickhouse_batch_size` | Number of entries per flush (histogram) |
+| `nginx_clickhouse_circuit_breaker_state` | Circuit breaker state (0=closed, 1=open, 2=half-open) |
+| `nginx_clickhouse_circuit_breaker_rejections_total` | Flushes rejected by circuit breaker |
 
 ## Reliability
 
@@ -203,6 +219,41 @@ This ensures no data loss during deployments or container restarts.
 ### Buffer Limits
 
 The in-memory buffer is capped at `max_buffer_size` (default: 10,000 lines). When the buffer is full, it flushes immediately rather than waiting for the next interval.
+
+### Disk Buffer
+
+For crash recovery, enable disk-backed buffering:
+
+```yaml
+settings:
+  buffer:
+    type: disk
+    disk_path: /var/lib/nginx-clickhouse/buffer
+    max_disk_bytes: 1073741824  # 1GB
+```
+
+When enabled, log lines are written to append-only segment files on disk. If the process crashes, unprocessed segments are automatically replayed on restart. This provides at-least-once delivery.
+
+Segment files are rotated at 10MB and deleted after successful flush.
+
+### Circuit Breaker
+
+When ClickHouse is down for extended periods, the circuit breaker prevents wasting resources on retries:
+
+```yaml
+settings:
+  circuit_breaker:
+    enabled: true
+    threshold: 5        # open after 5 consecutive failures
+    cooldown_secs: 60   # wait 60s before probing
+```
+
+States:
+- **Closed** (normal): all flushes proceed
+- **Open**: flushes are skipped, lines counted as not processed
+- **Half-open**: after cooldown, one probe flush is attempted. Success closes the circuit; failure re-opens it.
+
+Monitor via `nginx_clickhouse_circuit_breaker_state` (0=closed, 1=open, 2=half-open) and `nginx_clickhouse_circuit_breaker_rejections_total`.
 
 ### Health Check
 
