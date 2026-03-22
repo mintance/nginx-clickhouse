@@ -1,955 +1,476 @@
 {
-    "editable": true,
-    "gnetId": null,
-    "graphTooltip": 0,
-    "hideControls": false,
-    "id": 1,
-    "links": [],
-    "refresh": false,
-    "rows": [
+  "__inputs": [
     {
-    "collapse": false,
-    "height": "250px",
-    "panels": [
-    {
-    "aliasColors": {},
-    "bars": false,
-    "dashLength": 10,
-    "dashes": false,
-    "datasource": "ClickHouse Main Server",
-    "fill": 1,
-    "id": 1,
-    "legend": {
-    "avg": true,
-    "current": true,
-    "max": true,
-    "min": true,
-    "show": true,
-    "total": false,
-    "values": true
-    },
-    "lines": true,
-    "linewidth": 1,
-    "links": [],
-    "nullPointMode": "null",
-    "percentage": false,
-    "pointradius": 5,
-    "points": false,
-    "renderer": "flot",
-    "seriesOverrides": [],
-    "spaceLength": 10,
-    "span": 12,
-    "stack": false,
-    "steppedLine": false,
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkcyan\">$columns</font>(Status, <font color=\"navajowhite\">count</font>(<font color=\"yellow\">*</font>) <font color=\"darkorange\">as</font> c) <font color=\"darkorange\">from</font> metrics<font color=\"yellow\">.</font>nginx_streaming",
-    "hide": false,
-    "interval": "15s",
-    "intervalFactor": 1,
-    "query": "$columns(Status, count(*) as c) from metrics.nginx",
-    "rawQuery": "SELECT t, groupArray((Status, c)) as groupArr FROM ( SELECT (intDiv(toUInt32(TimeLocal), 15) * 15) * 1000 as t, Status, count(*) as c from metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t, Status ORDER BY t) GROUP BY t ORDER BY t",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
+      "name": "DS_CLICKHOUSE",
+      "label": "ClickHouse",
+      "description": "ClickHouse data source",
+      "type": "datasource",
+      "pluginId": "grafana-clickhouse-datasource",
+      "pluginName": "ClickHouse"
     }
-    ],
-    "thresholds": [],
-    "timeFrom": null,
-    "timeShift": null,
-    "title": "Streaming API Requests & Response",
-    "tooltip": {
-    "shared": true,
-    "sort": 0,
-    "value_type": "individual"
-    },
-    "type": "graph",
-    "xaxis": {
-    "buckets": null,
-    "mode": "time",
-    "name": null,
-    "show": true,
-    "values": []
-    },
-    "yaxes": [
+  ],
+  "__requires": [
     {
-    "decimals": null,
-    "format": "short",
-    "label": "Requests",
-    "logBase": 1,
-    "max": null,
-    "min": null,
-    "show": true
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
     },
     {
-    "format": "short",
-    "label": "",
-    "logBase": 1,
-    "max": null,
-    "min": null,
-    "show": true
+      "type": "datasource",
+      "id": "grafana-clickhouse-datasource",
+      "name": "ClickHouse",
+      "version": "4.0.0"
     }
-    ]
-    }
-    ],
-    "repeat": null,
-    "repeatIteration": null,
-    "repeatRowId": null,
-    "showTitle": false,
-    "title": "Dashboard Row",
-    "titleSize": "h6"
-    },
-    {
-    "collapse": false,
-    "height": 399,
-    "panels": [
-    {
-    "columns": [],
-    "datasource": "ClickHouse Main Server",
-    "fontSize": "100%",
-    "id": 2,
-    "links": [],
-    "pageSize": null,
-    "scroll": true,
-    "showHeader": true,
-    "sort": {
-    "col": 0,
-    "desc": true
-    },
-    "span": 6,
-    "styles": [
-    {
-    "alias": "Time",
-    "dateFormat": "YYYY-MM-DD HH:mm:ss",
-    "pattern": "Time",
-    "type": "date"
-    },
-    {
-    "alias": "",
-    "colorMode": null,
-    "colors": [
-    "rgba(245, 54, 54, 0.9)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(50, 172, 45, 0.97)"
-    ],
-    "decimals": 2,
-    "pattern": "/.*/",
-    "thresholds": [],
-    "type": "number",
-    "unit": "short"
-    }
-    ],
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkcyan\">$columns</font>(Status, <font color=\"navajowhite\">count</font>(<font color=\"yellow\">*</font>) <font color=\"darkorange\">as</font> c) <font color=\"darkorange\">from</font> metrics<font color=\"yellow\">.</font>nginx_streaming",
-    "hide": false,
-    "interval": "3600s",
-    "intervalFactor": 1,
-    "query": "$columns(Status, count(*) as c) from metrics.nginx",
-    "rawQuery": "SELECT t, groupArray((Status, c)) as groupArr FROM ( SELECT (intDiv(toUInt32(TimeLocal), 3600) * 3600) * 1000 as t, Status, count(*) as c from metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t, Status ORDER BY t) GROUP BY t ORDER BY t",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "title": "Requests Stats Table",
-    "transform": "timeseries_to_columns",
-    "type": "table"
-    },
-    {
-    "aliasColors": {},
-    "bars": false,
-    "dashLength": 10,
-    "dashes": false,
-    "datasource": "ClickHouse Main Server",
-    "fill": 1,
-    "id": 3,
-    "legend": {
-    "avg": false,
-    "current": false,
-    "max": false,
-    "min": false,
-    "show": true,
-    "total": false,
-    "values": false
-    },
-    "lines": true,
-    "linewidth": 1,
-    "links": [],
-    "nullPointMode": "null",
-    "percentage": false,
-    "pointradius": 5,
-    "points": false,
-    "renderer": "flot",
-    "seriesOverrides": [],
-    "spaceLength": 10,
-    "span": 6,
-    "stack": false,
-    "steppedLine": false,
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkcyan\">$rate</font>(<font color=\"navajowhite\">avg</font>(RequestTime) <font color=\"darkorange\">as</font> RequestTime) <font color=\"darkorange\">FROM</font> metrics<font color=\"yellow\">.</font>nginx_streaming",
-    "hide": false,
-    "intervalFactor": 1,
-    "query": "$rate(avg(RequestTime) as RequestTime) FROM metrics.nginx",
-    "rawQuery": "SELECT t, RequestTime/runningDifference(t/1000) RequestTimeRate FROM ( SELECT (intDiv(toUInt32(TimeLocal), 120) * 120) * 1000 as t, avg(RequestTime) as RequestTime FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t ORDER BY t)",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    },
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkcyan\">$rate</font>(<font color=\"navajowhite\">avg</font>(UpstreamResponseTime) <font color=\"darkorange\">as</font> UpstreamResponseTime) <font color=\"darkorange\">FROM</font> metrics<font color=\"yellow\">.</font>nginx_streaming",
-    "hide": false,
-    "intervalFactor": 1,
-    "query": "$rate(avg(UpstreamResponseTime) as UpstreamResponseTime) FROM metrics.nginx",
-    "rawQuery": "SELECT t, UpstreamResponseTime/runningDifference(t/1000) UpstreamResponseTimeRate FROM ( SELECT (intDiv(toUInt32(TimeLocal), 120) * 120) * 1000 as t, avg(UpstreamResponseTime) as UpstreamResponseTime FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t ORDER BY t)",
-    "refId": "B",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    },
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkcyan\">$rate</font>(<font color=\"navajowhite\">avg</font>(UpstreamConnectTime) <font color=\"darkorange\">as</font> UpstreamConnectTime) <font color=\"darkorange\">FROM</font> metrics<font color=\"yellow\">.</font>nginx_streaming",
-    "hide": false,
-    "intervalFactor": 1,
-    "query": "$rate(avg(UpstreamConnectTime) as UpstreamConnectTime) FROM metrics.nginx",
-    "rawQuery": "SELECT t, UpstreamConnectTime/runningDifference(t/1000) UpstreamConnectTimeRate FROM ( SELECT (intDiv(toUInt32(TimeLocal), 120) * 120) * 1000 as t, avg(UpstreamConnectTime) as UpstreamConnectTime FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t ORDER BY t)",
-    "refId": "C",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "thresholds": [],
-    "timeFrom": null,
-    "timeShift": null,
-    "title": "Response Timing",
-    "tooltip": {
-    "shared": true,
-    "sort": 0,
-    "value_type": "individual"
-    },
-    "type": "graph",
-    "xaxis": {
-    "buckets": null,
-    "mode": "time",
-    "name": null,
-    "show": true,
-    "values": []
-    },
-    "yaxes": [
-    {
-    "format": "short",
-    "label": null,
-    "logBase": 1,
-    "max": null,
-    "min": null,
-    "show": true
-    },
-    {
-    "format": "short",
-    "label": null,
-    "logBase": 1,
-    "max": null,
-    "min": null,
-    "show": true
-    }
-    ]
-    }
-    ],
-    "repeat": null,
-    "repeatIteration": null,
-    "repeatRowId": null,
-    "showTitle": false,
-    "title": "Dashboard Row",
-    "titleSize": "h6"
-    },
-    {
-    "collapse": false,
-    "height": 250,
-    "panels": [
-    {
-    "cacheTimeout": null,
-    "colorBackground": false,
-    "colorValue": false,
-    "colors": [
-    "rgba(245, 54, 54, 0.9)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(50, 172, 45, 0.97)"
-    ],
-    "datasource": "ClickHouse Main Server",
-    "format": "none",
-    "gauge": {
-    "maxValue": 100,
-    "minValue": 0,
-    "show": false,
-    "thresholdLabels": false,
-    "thresholdMarkers": true
-    },
-    "id": 4,
-    "interval": null,
-    "links": [],
-    "mappingType": 1,
-    "mappingTypes": [
-    {
-    "name": "value to text",
-    "value": 1
-    },
-    {
-    "name": "range to text",
-    "value": 2
-    }
-    ],
-    "maxDataPoints": 100,
-    "nullPointMode": "connected",
-    "nullText": null,
-    "postfix": "",
-    "postfixFontSize": "50%",
-    "prefix": "",
-    "prefixFontSize": "50%",
-    "rangeMaps": [
-    {
-    "from": "null",
-    "text": "N/A",
-    "to": "null"
-    }
-    ],
-    "span": 2,
-    "sparkline": {
-    "fillColor": "rgba(31, 118, 189, 0.18)",
-    "full": false,
-    "lineColor": "rgb(31, 120, 193)",
-    "show": false
-    },
-    "tableColumn": "",
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkorange\">SELECT</font><br />        <font color=\"cornflowerblue\">1</font> <font color=\"darkorange\">as</font> t,<br />        <font color=\"navajowhite\">count</font>(<font color=\"yellow\">*</font>) <font color=\"darkorange\">as</font> c<br />    <font color=\"darkorange\">FROM</font> <font color=\"darkcyan\">$table</font><br />    <font color=\"darkorange\">WHERE</font> <font color=\"darkcyan\">$timeFilter</font> <font color=\"darkorange\">GROUP BY</font> t",
-    "intervalFactor": 1,
-    "query": "SELECT\n 1 as t,\n count(*) as c\n FROM $table\n WHERE $timeFilter GROUP BY t",
-    "rawQuery": "SELECT 1 as t, count(*) as c FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "thresholds": "",
-    "title": "Total Requests",
-    "type": "singlestat",
-    "valueFontSize": "80%",
-    "valueMaps": [
-    {
-    "op": "=",
-    "text": "N/A",
-    "value": "null"
-    }
-    ],
-    "valueName": "avg"
-    },
-    {
-    "cacheTimeout": null,
-    "colorBackground": false,
-    "colorValue": false,
-    "colors": [
-    "rgba(245, 54, 54, 0.9)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(50, 172, 45, 0.97)"
-    ],
-    "datasource": "ClickHouse Main Server",
-    "format": "ops",
-    "gauge": {
-    "maxValue": 100,
-    "minValue": 0,
-    "show": false,
-    "thresholdLabels": false,
-    "thresholdMarkers": true
-    },
-    "id": 5,
-    "interval": null,
-    "links": [],
-    "mappingType": 1,
-    "mappingTypes": [
-    {
-    "name": "value to text",
-    "value": 1
-    },
-    {
-    "name": "range to text",
-    "value": 2
-    }
-    ],
-    "maxDataPoints": 100,
-    "nullPointMode": "connected",
-    "nullText": null,
-    "postfix": "",
-    "postfixFontSize": "50%",
-    "prefix": "",
-    "prefixFontSize": "50%",
-    "rangeMaps": [
-    {
-    "from": "null",
-    "text": "N/A",
-    "to": "null"
-    }
-    ],
-    "span": 2,
-    "sparkline": {
-    "fillColor": "rgba(31, 118, 189, 0.18)",
-    "full": false,
-    "lineColor": "rgb(31, 120, 193)",
-    "show": false
-    },
-    "tableColumn": "",
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkorange\">SELECT</font><br />        <font color=\"cornflowerblue\">1</font> <font color=\"darkorange\">as</font> t,<br />        <font color=\"navajowhite\">count</font>(<font color=\"yellow\">*</font>) <font color=\"yellow\">/</font> <font color=\"cornflowerblue\">3600</font><font color=\"yellow\">*</font><font color=\"cornflowerblue\">24</font> <font color=\"darkorange\">as</font> c<br />    <font color=\"darkorange\">FROM</font> <font color=\"darkcyan\">$table</font><br />    <font color=\"darkorange\">WHERE</font> <font color=\"darkcyan\">$timeFilter</font> <font color=\"darkorange\">GROUP BY</font> t",
-    "intervalFactor": 1,
-    "query": "SELECT\n 1 as t,\n count(*) / 3600*24 as c\n FROM $table\n WHERE $timeFilter GROUP BY t",
-    "rawQuery": "SELECT 1 as t, count(*) / 3600*24 as c FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "thresholds": "",
-    "title": "RPS",
-    "type": "singlestat",
-    "valueFontSize": "80%",
-    "valueMaps": [
-    {
-    "op": "=",
-    "text": "N/A",
-    "value": "null"
-    }
-    ],
-    "valueName": "avg"
-    },
-    {
-    "cacheTimeout": null,
-    "colorBackground": true,
-    "colorValue": false,
-    "colors": [
-    "rgba(50, 172, 45, 0.97)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(245, 54, 54, 0.9)"
-    ],
-    "datasource": "ClickHouse Main Server",
-    "format": "none",
-    "gauge": {
-    "maxValue": 100,
-    "minValue": 0,
-    "show": false,
-    "thresholdLabels": false,
-    "thresholdMarkers": true
-    },
-    "id": 6,
-    "interval": null,
-    "links": [],
-    "mappingType": 1,
-    "mappingTypes": [
-    {
-    "name": "value to text",
-    "value": 1
-    },
-    {
-    "name": "range to text",
-    "value": 2
-    }
-    ],
-    "maxDataPoints": 100,
-    "nullPointMode": "connected",
-    "nullText": null,
-    "postfix": "",
-    "postfixFontSize": "50%",
-    "prefix": "",
-    "prefixFontSize": "50%",
-    "rangeMaps": [
-    {
-    "from": "null",
-    "text": "N/A",
-    "to": "null"
-    }
-    ],
-    "span": 2,
-    "sparkline": {
-    "fillColor": "rgba(31, 118, 189, 0.18)",
-    "full": false,
-    "lineColor": "rgb(31, 120, 193)",
-    "show": false
-    },
-    "tableColumn": "",
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkorange\">SELECT</font><br />        <font color=\"cornflowerblue\">1</font> <font color=\"darkorange\">as</font> t,<br />        <font color=\"navajowhite\">count</font>(<font color=\"yellow\">*</font>) <font color=\"darkorange\">as</font> c<br />    <font color=\"darkorange\">FROM</font> <font color=\"darkcyan\">$table</font><br />    <font color=\"darkorange\">WHERE</font> <font color=\"darkcyan\">$timeFilter</font> <font color=\"yellow\">AND</font> Status <font color=\"darkorange\">NOT</font> <font color=\"darkorange\">IN</font> (<font color=\"cornflowerblue\">200</font>, <font color=\"cornflowerblue\">201</font>, <font color=\"cornflowerblue\">401</font>) <font color=\"darkorange\">GROUP BY</font> t",
-    "intervalFactor": 1,
-    "query": "SELECT\n 1 as t,\n count(*) as c\n FROM $table\n WHERE $timeFilter AND Status NOT IN (200, 201, 401) GROUP BY t",
-    "rawQuery": "SELECT 1 as t, count(*) as c FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) AND Status NOT IN (200, 201, 401) GROUP BY t",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "thresholds": "10,20,50",
-    "title": "Failed Requests",
-    "type": "singlestat",
-    "valueFontSize": "80%",
-    "valueMaps": [
-    {
-    "op": "=",
-    "text": "N/A",
-    "value": "null"
-    }
-    ],
-    "valueName": "avg"
-    },
-    {
-    "cacheTimeout": null,
-    "colorBackground": true,
-    "colorValue": false,
-    "colors": [
-    "rgba(50, 172, 45, 0.97)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(245, 54, 54, 0.9)"
-    ],
-    "datasource": "ClickHouse Main Server",
-    "decimals": null,
-    "format": "none",
-    "gauge": {
-    "maxValue": 100,
-    "minValue": 0,
-    "show": false,
-    "thresholdLabels": false,
-    "thresholdMarkers": true
-    },
-    "id": 9,
-    "interval": null,
-    "links": [],
-    "mappingType": 1,
-    "mappingTypes": [
-    {
-    "name": "value to text",
-    "value": 1
-    },
-    {
-    "name": "range to text",
-    "value": 2
-    }
-    ],
-    "maxDataPoints": 100,
-    "nullPointMode": "connected",
-    "nullText": null,
-    "postfix": "%",
-    "postfixFontSize": "80%",
-    "prefix": "",
-    "prefixFontSize": "50%",
-    "rangeMaps": [
-    {
-    "from": "null",
-    "text": "N/A",
-    "to": "null"
-    }
-    ],
-    "span": 2,
-    "sparkline": {
-    "fillColor": "rgba(31, 118, 189, 0.18)",
-    "full": false,
-    "lineColor": "rgb(31, 120, 193)",
-    "show": false
-    },
-    "tableColumn": "",
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkorange\">SELECT</font><br />        <font color=\"cornflowerblue\">1</font> <font color=\"darkorange\">as</font> t, (<font color=\"navajowhite\">sum</font>(Status <font color=\"yellow\">=</font> <font color=\"cornflowerblue\">500</font> <font color=\"yellow\">or</font> Status <font color=\"yellow\">=</font> <font color=\"cornflowerblue\">499</font>)<font color=\"yellow\">/</font><font color=\"navajowhite\">sum</font>(Status <font color=\"yellow\">=</font> <font color=\"cornflowerblue\">200</font> <font color=\"yellow\">or</font> Status <font color=\"yellow\">=</font> <font color=\"cornflowerblue\">201</font> <font color=\"yellow\">or</font> Status <font color=\"yellow\">=</font> <font color=\"cornflowerblue\">401</font>))<font color=\"yellow\">*</font><font color=\"cornflowerblue\">100</font> <font color=\"darkorange\">FROM</font> <font color=\"darkcyan\">$table</font><br />    <font color=\"darkorange\">WHERE</font> <font color=\"darkcyan\">$timeFilter</font> <font color=\"darkorange\">GROUP BY</font> t",
-    "intervalFactor": 1,
-    "query": "SELECT\n 1 as t, (sum(Status = 500 or Status = 499)/sum(Status = 200 or Status = 201 or Status = 401))*100 FROM $table\n WHERE $timeFilter GROUP BY t",
-    "rawQuery": "SELECT 1 as t, (sum(Status = 500 or Status = 499)/sum(Status = 200 or Status = 201 or Status = 401))*100 FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "thresholds": "1,5",
-    "title": "Failing Prcent",
-    "type": "singlestat",
-    "valueFontSize": "80%",
-    "valueMaps": [
-    {
-    "op": "=",
-    "text": "N/A",
-    "value": "null"
-    }
-    ],
-    "valueName": "current"
-    },
-    {
-    "cacheTimeout": null,
-    "colorBackground": true,
-    "colorValue": false,
-    "colors": [
-    "rgba(245, 54, 54, 0.9)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(50, 172, 45, 0.97)"
-    ],
-    "datasource": "ClickHouse Main Server",
-    "format": "s",
-    "gauge": {
-    "maxValue": 100,
-    "minValue": 0,
-    "show": false,
-    "thresholdLabels": false,
-    "thresholdMarkers": true
-    },
-    "id": 7,
-    "interval": null,
-    "links": [],
-    "mappingType": 1,
-    "mappingTypes": [
-    {
-    "name": "value to text",
-    "value": 1
-    },
-    {
-    "name": "range to text",
-    "value": 2
-    }
-    ],
-    "maxDataPoints": 100,
-    "nullPointMode": "connected",
-    "nullText": null,
-    "postfix": "",
-    "postfixFontSize": "50%",
-    "prefix": "",
-    "prefixFontSize": "50%",
-    "rangeMaps": [
-    {
-    "from": "null",
-    "text": "N/A",
-    "to": "null"
-    }
-    ],
-    "span": 2,
-    "sparkline": {
-    "fillColor": "rgba(31, 118, 189, 0.18)",
-    "full": false,
-    "lineColor": "rgb(31, 120, 193)",
-    "show": false
-    },
-    "tableColumn": "",
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkorange\">SELECT</font><br />        <font color=\"cornflowerblue\">1</font>, <font color=\"navajowhite\">avg</font>(RequestTime) <font color=\"darkorange\">FROM</font> <font color=\"darkcyan\">$table</font><br />    <font color=\"darkorange\">WHERE</font> <font color=\"darkcyan\">$timeFilter</font> <font color=\"darkorange\">GROUP BY</font> <font color=\"cornflowerblue\">1</font>",
-    "intervalFactor": 1,
-    "query": "SELECT\n 1, avg(RequestTime) FROM $table\n WHERE $timeFilter GROUP BY 1",
-    "rawQuery": "SELECT 1, avg(RequestTime) FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY 1",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "thresholds": "0.02,0.05,0.1",
-    "title": "Avg Response Time",
-    "type": "singlestat",
-    "valueFontSize": "80%",
-    "valueMaps": [
-    {
-    "op": "=",
-    "text": "N/A",
-    "value": "null"
-    }
-    ],
-    "valueName": "avg"
-    },
-    {
-    "cacheTimeout": null,
-    "colorBackground": true,
-    "colorValue": false,
-    "colors": [
-    "rgba(50, 172, 45, 0.97)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(245, 54, 54, 0.9)"
-    ],
-    "datasource": "ClickHouse Main Server",
-    "decimals": null,
-    "format": "s",
-    "gauge": {
-    "maxValue": 100,
-    "minValue": 0,
-    "show": false,
-    "thresholdLabels": false,
-    "thresholdMarkers": true
-    },
-    "id": 8,
-    "interval": null,
-    "links": [],
-    "mappingType": 1,
-    "mappingTypes": [
-    {
-    "name": "value to text",
-    "value": 1
-    },
-    {
-    "name": "range to text",
-    "value": 2
-    }
-    ],
-    "maxDataPoints": 100,
-    "nullPointMode": "connected",
-    "nullText": null,
-    "postfix": "",
-    "postfixFontSize": "70%",
-    "prefix": "",
-    "prefixFontSize": "50%",
-    "rangeMaps": [
-    {
-    "from": "null",
-    "text": "N/A",
-    "to": "null"
-    }
-    ],
-    "span": 2,
-    "sparkline": {
-    "fillColor": "rgba(31, 118, 189, 0.18)",
-    "full": false,
-    "lineColor": "rgb(31, 120, 193)",
-    "show": false
-    },
-    "tableColumn": "",
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "<font color=\"darkorange\">SELECT</font><br />        <font color=\"cornflowerblue\">1</font> <font color=\"darkorange\">as</font> t, <font color=\"navajowhite\">max</font>(RequestTime) <font color=\"darkorange\">as</font> c<br />    <font color=\"darkorange\">FROM</font> <font color=\"darkcyan\">$table</font><br />    <font color=\"darkorange\">WHERE</font> <font color=\"darkcyan\">$timeFilter</font> <font color=\"darkorange\">GROUP BY</font> t",
-    "intervalFactor": 1,
-    "query": "SELECT\n 1 as t, max(RequestTime) as c\n FROM $table\n WHERE $timeFilter GROUP BY t",
-    "rawQuery": "SELECT 1 as t, max(RequestTime) as c FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) GROUP BY t",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "thresholds": "0.2,0.5,1",
-    "title": "Max Response Time",
-    "type": "singlestat",
-    "valueFontSize": "80%",
-    "valueMaps": [
-    {
-    "op": "=",
-    "text": "N/A",
-    "value": "null"
-    }
-    ],
-    "valueName": "current"
-    }
-    ],
-    "repeat": null,
-    "repeatIteration": null,
-    "repeatRowId": null,
-    "showTitle": false,
-    "title": "Dashboard Row",
-    "titleSize": "h6"
-    },
-    {
-    "collapse": false,
-    "height": "450",
-    "panels": [
-    {
-    "columns": [],
-    "datasource": "ClickHouse Main Server",
-    "fontSize": "100%",
-    "id": 11,
-    "links": [],
-    "pageSize": null,
-    "scroll": true,
-    "showHeader": true,
-    "sort": {
-    "col": 0,
-    "desc": true
-    },
-    "span": 8,
-    "styles": [
-    {
-    "alias": "Time",
-    "dateFormat": "HH:mm:ss",
-    "pattern": "Time",
-    "type": "date"
-    },
-    {
-    "alias": "",
-    "colorMode": null,
-    "colors": [
-    "rgba(245, 54, 54, 0.9)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(50, 172, 45, 0.97)"
-    ],
-    "dateFormat": "YYYY-MM-DD HH:mm:ss",
-    "decimals": 0,
-    "pattern": "Status",
-    "thresholds": [],
-    "type": "number",
-    "unit": "none"
-    },
-    {
-    "alias": "Response Time",
-    "colorMode": null,
-    "colors": [
-    "rgba(50, 172, 45, 0.97)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(245, 54, 54, 0.9)"
-    ],
-    "dateFormat": "YYYY-MM-DD HH:mm:ss",
-    "decimals": 2,
-    "pattern": "RequestTime",
-    "thresholds": [
-    "50",
-    "70",
-    "100"
-    ],
-    "type": "number",
-    "unit": "dtdurations"
-    },
-    {
-    "alias": "",
-    "colorMode": null,
-    "colors": [
-    "rgba(245, 54, 54, 0.9)",
-    "rgba(237, 129, 40, 0.89)",
-    "rgba(50, 172, 45, 0.97)"
-    ],
-    "decimals": 2,
-    "pattern": "/.*/",
-    "thresholds": [],
-    "type": "number",
-    "unit": "short"
-    }
-    ],
-    "targets": [
-    {
-    "database": "metrics",
-    "dateColDataType": "Date",
-    "dateLoading": false,
-    "dateTimeColDataType": "TimeLocal",
-    "datetimeLoading": false,
-    "formattedQuery": "SELECT TimeLocal as t, Status, RequestMethod, splitByChar(' ', Request)[2] as Request, RequestTime FROM $table WHERE $timeFilter AND Status NOT IN (200, 201) AND RequestMethod != 'OPTIONS' ORDER BY t",
-    "intervalFactor": 1,
-    "query": "SELECT TimeLocal as t, Status, RequestMethod, splitByChar(' ', Request)[2] as Request, RequestTime FROM $table WHERE $timeFilter AND Status NOT IN (200, 201) AND RequestMethod != 'OPTIONS' ORDER BY t",
-    "rawQuery": "SELECT TimeLocal as t, Status, RequestMethod, splitByChar(' ', Request)[2] as Request, RequestTime FROM metrics.nginx WHERE Date >= toDate(1539358595) AND TimeLocal >= toDateTime(1539358595) AND Status NOT IN (200, 201) AND RequestMethod != 'OPTIONS' ORDER BY t",
-    "refId": "A",
-    "resultFormat": "time_series",
-    "table": "nginx_streaming",
-    "tableLoading": false
-    }
-    ],
-    "title": "Error Requests",
-    "transform": "timeseries_to_columns",
-    "type": "table"
-    }
-    ],
-    "repeat": null,
-    "repeatIteration": null,
-    "repeatRowId": null,
-    "showTitle": false,
-    "title": "Dashboard Row",
-    "titleSize": "h6"
-    }
-    ],
-    "schemaVersion": 14,
-    "style": "dark",
-    "tags": [],
-    "templating": {
+  ],
+  "annotations": {
     "list": []
+  },
+  "description": "NGINX access log analytics powered by nginx-clickhouse",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Overview",
+      "type": "row"
     },
-    "time": {
-    "from": "now-24h",
-    "to": "now"
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Total Requests",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT count(*) as total FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime)",
+          "refId": "A",
+          "format": 1
+        }
+      ]
     },
-    "timepicker": {
-    "refresh_intervals": [
-    "5s",
-    "10s",
-    "30s",
-    "1m",
-    "5m",
-    "15m",
-    "30m",
-    "1h",
-    "2h",
-    "1d"
-    ],
-    "time_options": [
-    "5m",
-    "15m",
-    "1h",
-    "6h",
-    "12h",
-    "24h",
-    "2d",
-    "7d",
-    "30d"
-    ]
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }] },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Requests per Second",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT count(*) / greatest(dateDiff('second', min(TimeLocal), max(TimeLocal)), 1) as rps FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime)",
+          "refId": "A",
+          "format": 1
+        }
+      ]
     },
-    "timezone": "",
-    "title": "Streaming API",
-    "version": 17
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Error Rate",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT countIf(Status >= 500) * 100.0 / greatest(count(*), 1) as error_rate FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime)",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 1 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Avg Response Time",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT avg(RequestTime) as avg_time FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime)",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 3 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "P95 Response Time",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT quantile(0.95)(RequestTime) as p95 FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime)",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 10 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "P99 Response Time",
+      "type": "stat",
+      "targets": [
+        {
+          "rawSql": "SELECT quantile(0.99)(RequestTime) as p99 FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime)",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Traffic",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisLabel": "", "barAlignment": 0, "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 0, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "2xx" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "3xx" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "4xx" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "5xx" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 6 },
+      "id": 7,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "Requests by Status Class",
+      "type": "timeseries",
+      "targets": [
+        {
+          "rawSql": "SELECT toStartOfInterval(TimeLocal, INTERVAL $__interval_s second) as time, concat(toString(intDiv(Status, 100)), 'xx') as status_class, count(*) as cnt FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY time, status_class ORDER BY time",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "tooltip": { "mode": "single" } },
+      "title": "Requests by Method",
+      "type": "piechart",
+      "targets": [
+        {
+          "rawSql": "SELECT splitByChar(' ', Request)[1] as method, count(*) as cnt FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY method ORDER BY cnt DESC",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "Performance",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisLabel": "seconds", "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "never" },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 9,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "Response Time (Avg / P95 / P99)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "rawSql": "SELECT toStartOfInterval(TimeLocal, INTERVAL $__interval_s second) as time, avg(RequestTime) as avg, quantile(0.95)(RequestTime) as p95, quantile(0.99)(RequestTime) as p99 FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY time ORDER BY time",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
+          "custom": { "axisBorderShow": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never" },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 10,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "Error Rate Over Time",
+      "type": "timeseries",
+      "targets": [
+        {
+          "rawSql": "SELECT toStartOfInterval(TimeLocal, INTERVAL $__interval_s second) as time, countIf(Status >= 400) * 100.0 / greatest(count(*), 1) as error_4xx_5xx, countIf(Status >= 500) * 100.0 / greatest(count(*), 1) as error_5xx FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY time ORDER BY time",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 11,
+      "options": { "legend": { "calcs": ["sum", "mean"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "Bandwidth (Bytes Sent)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "rawSql": "SELECT toStartOfInterval(TimeLocal, INTERVAL $__interval_s second) as time, sum(BytesSent) as bytes_sent FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY time ORDER BY time",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 12,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "Requests per Second Over Time",
+      "type": "timeseries",
+      "targets": [
+        {
+          "rawSql": "SELECT toStartOfInterval(TimeLocal, INTERVAL $__interval_s second) as time, count(*) / $__interval_s as rps FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY time ORDER BY time",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 103,
+      "title": "Top N Analysis",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "fillOpacity": 80 }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 32 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "hidden" }, "tooltip": { "mode": "single" } },
+      "title": "Top 10 URLs",
+      "type": "barchart",
+      "targets": [
+        {
+          "rawSql": "SELECT splitByChar(' ', Request)[2] as url, count(*) as cnt FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY url ORDER BY cnt DESC LIMIT 10",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "fillOpacity": 80 }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 32 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "hidden" }, "tooltip": { "mode": "single" } },
+      "title": "Top 10 Client IPs",
+      "type": "barchart",
+      "targets": [
+        {
+          "rawSql": "SELECT RemoteAddr as ip, count(*) as cnt FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY ip ORDER BY cnt DESC LIMIT 10",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "fillOpacity": 80 }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 32 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "hidden" }, "tooltip": { "mode": "single" } },
+      "title": "Top 10 User Agents",
+      "type": "barchart",
+      "targets": [
+        {
+          "rawSql": "SELECT HttpUserAgent as ua, count(*) as cnt FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) GROUP BY ua ORDER BY cnt DESC LIMIT 10",
+          "refId": "A",
+          "format": 1
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "id": 104,
+      "title": "Slow & Error Requests",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "${DS_CLICKHOUSE}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "filterable": true }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Status" }, "properties": [{ "id": "custom.width", "value": 60 }] },
+          { "matcher": { "id": "byName", "options": "RequestTime" }, "properties": [{ "id": "unit", "value": "s" }, { "id": "custom.width", "value": 100 }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 41 },
+      "id": 16,
+      "options": { "showHeader": true, "sortBy": [{ "desc": true, "displayName": "RequestTime" }], "footer": { "enablePagination": true } },
+      "title": "Slow & Error Requests",
+      "type": "table",
+      "targets": [
+        {
+          "rawSql": "SELECT TimeLocal, RemoteAddr, splitByChar(' ', Request)[1] as Method, splitByChar(' ', Request)[2] as URL, Status, BytesSent, RequestTime, HttpReferer, HttpUserAgent FROM ${database:String}.${table:String} WHERE TimeLocal >= toDateTime($__fromTime) AND TimeLocal <= toDateTime($__toTime) AND (Status >= 400 OR RequestTime > 1) ORDER BY TimeLocal DESC LIMIT 500",
+          "refId": "A",
+          "format": 1
+        }
+      ]
     }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["nginx", "clickhouse", "nginx-clickhouse"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "metrics", "value": "metrics" },
+        "description": "ClickHouse database name",
+        "hide": 0,
+        "label": "Database",
+        "name": "database",
+        "options": [],
+        "query": "metrics",
+        "type": "textbox"
+      },
+      {
+        "current": { "selected": false, "text": "nginx", "value": "nginx" },
+        "description": "ClickHouse table name",
+        "hide": 0,
+        "label": "Table",
+        "name": "table",
+        "options": [],
+        "query": "nginx",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "NGINX Access Logs",
+  "uid": "nginx-clickhouse",
+  "version": 1
+}

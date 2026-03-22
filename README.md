@@ -369,9 +369,23 @@ All logs are emitted as structured JSON (via logrus), making them easy to parse,
 
 ## Grafana Dashboard
 
-A pre-built Grafana dashboard is included in [`grafana/dashboard.json`](grafana/dashboard.json). Import it into Grafana to visualize your NGINX metrics.
+A pre-built Grafana dashboard is included in [`grafana/dashboard.json`](grafana/dashboard.json).
 
-![Grafana Dashboard](grafana/dashboard.png)
+**Requirements:** [Official Grafana ClickHouse plugin](https://grafana.com/grafana/plugins/grafana-clickhouse-datasource/) (v4.0+), Grafana 10+.
+
+**Import:** Grafana > Dashboards > Import > Upload JSON file. Set the `Database` and `Table` template variables to match your config.
+
+**Panels (16):**
+
+| Row | Panels |
+|---|---|
+| **Overview** | Total Requests, RPS, Error Rate %, Avg Response Time, P95, P99 |
+| **Traffic** | Requests by Status Class (stacked bar), Requests by Method (donut) |
+| **Performance** | Response Time (avg/p95/p99), Error Rate Over Time, Bandwidth, RPS Over Time |
+| **Top N** | Top 10 URLs, Top 10 Client IPs, Top 10 User Agents |
+| **Logs** | Slow & Error Requests table (status >= 400 or response time > 1s) |
+
+Template variables: `database` (default: `metrics`), `table` (default: `nginx`).
 
 ## Contributing
 
