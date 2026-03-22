@@ -56,6 +56,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
@@ -65,3 +72,5 @@ jobs:
           tags: |
             mintance/nginx-clickhouse:${{ steps.version.outputs.tag }}
             mintance/nginx-clickhouse:latest
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}
+            ghcr.io/${{ github.repository }}:latest
