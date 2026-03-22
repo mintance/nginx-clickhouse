@@ -5,8 +5,11 @@ package main
 import (
 	"io"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/papertrail/go-tail/follower"
@@ -85,6 +88,15 @@ func main() {
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
+		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			if client.Healthy() {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("ok"))
+			} else {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				w.Write([]byte("clickhouse unreachable"))
+			}
+		})
 		if err := http.ListenAndServe(":2112", nil); err != nil {
 			logrus.Fatal("metrics server failed: ", err)
 		}
@@ -107,6 +119,23 @@ func main() {
 	}
 
 	go flushLoop(cfg, parser, client)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		sig := <-sigCh
+		logrus.WithField("signal", sig.String()).Info("received shutdown signal")
+
+		// Flush remaining buffer.
+		flush(parser, client)
+
+		// Close ClickHouse connection.
+		client.Close()
+
+		logrus.Info("shutdown complete")
+		os.Exit(0)
+	}()
 
 	for line := range t.Lines() {
 		linesRead.Inc()
