@@ -360,6 +360,47 @@ func TestSetEnvVariablesCircuitBreaker(t *testing.T) {
 	}
 }
 
+func TestReadLogFormatType(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+nginx:
+  log_type: main
+  log_format: ""
+  log_format_type: json
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if cfg.Nginx.LogFormatType != "json" {
+		t.Errorf("expected LogFormatType=json, got %s", cfg.Nginx.LogFormatType)
+	}
+}
+
+func TestSetEnvVariablesLogFormatType(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("NGINX_LOG_FORMAT_TYPE", "json")
+
+	cfg.SetEnvVariables()
+
+	if cfg.Nginx.LogFormatType != "json" {
+		t.Errorf("expected LogFormatType=json, got %s", cfg.Nginx.LogFormatType)
+	}
+}
+
 func TestSetEnvVariablesInvalidInterval(t *testing.T) {
 	cfg := &Config{}
 	cfg.Settings.Interval = 5

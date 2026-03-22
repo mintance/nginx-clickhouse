@@ -74,8 +74,9 @@ type CredentialsConfig struct {
 
 // NginxConfig holds NGINX log format settings.
 type NginxConfig struct {
-	LogType   string `yaml:"log_type"`
-	LogFormat string `yaml:"log_format"`
+	LogType       string `yaml:"log_type"`
+	LogFormat     string `yaml:"log_format"`
+	LogFormatType string `yaml:"log_format_type"` // "text" (default) or "json"
 }
 
 var configPath string
@@ -182,6 +183,9 @@ func (c *Config) SetEnvVariables() {
 	}
 	if v := os.Getenv("NGINX_LOG_FORMAT"); v != "" {
 		c.Nginx.LogFormat = v
+	}
+	if v := os.Getenv("NGINX_LOG_FORMAT_TYPE"); v != "" {
+		c.Nginx.LogFormatType = v
 	}
 
 	if v := os.Getenv("BUFFER_TYPE"); v != "" {
