@@ -25,6 +25,9 @@ clickhouse:
  table: nginx
  host: localhost
  port: 9000
+ # tls: false                          # enable TLS (use port 9440 for ClickHouse secure native)
+ # tls_insecure_skip_verify: false     # skip certificate verification (not recommended)
+ # ca_cert: /etc/ssl/clickhouse-ca.pem # path to custom CA certificate
  credentials:
   user: default
   password:

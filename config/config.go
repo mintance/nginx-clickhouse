@@ -69,12 +69,15 @@ type CircuitBreakerConfig struct {
 
 // ClickHouseConfig holds ClickHouse connection and schema settings.
 type ClickHouseConfig struct {
-	DB          string            `yaml:"db"`
-	Table       string            `yaml:"table"`
-	Host        string            `yaml:"host"`
-	Port        string            `yaml:"port"`
-	Columns     map[string]string `yaml:"columns"`
-	Credentials CredentialsConfig `yaml:"credentials"`
+	DB                    string            `yaml:"db"`
+	Table                 string            `yaml:"table"`
+	Host                  string            `yaml:"host"`
+	Port                  string            `yaml:"port"`
+	TLS                   bool              `yaml:"tls"`
+	TLSInsecureSkipVerify bool              `yaml:"tls_insecure_skip_verify"`
+	CACert                string            `yaml:"ca_cert"`
+	Columns               map[string]string `yaml:"columns"`
+	Credentials           CredentialsConfig `yaml:"credentials"`
 }
 
 // CredentialsConfig holds authentication credentials for ClickHouse.
@@ -187,6 +190,15 @@ func (c *Config) SetEnvVariables() {
 	}
 	if v := os.Getenv("CLICKHOUSE_PASSWORD"); v != "" {
 		c.ClickHouse.Credentials.Password = v
+	}
+	if v := os.Getenv("CLICKHOUSE_TLS"); v != "" {
+		c.ClickHouse.TLS = v == "true"
+	}
+	if v := os.Getenv("CLICKHOUSE_TLS_SKIP_VERIFY"); v != "" {
+		c.ClickHouse.TLSInsecureSkipVerify = v == "true"
+	}
+	if v := os.Getenv("CLICKHOUSE_CA_CERT"); v != "" {
+		c.ClickHouse.CACert = v
 	}
 
 	if v := os.Getenv("NGINX_LOG_TYPE"); v != "" {

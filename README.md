@@ -96,6 +96,9 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `CLICKHOUSE_TABLE` | ClickHouse table name |
 | `CLICKHOUSE_USER` | ClickHouse username |
 | `CLICKHOUSE_PASSWORD` | ClickHouse password |
+| `CLICKHOUSE_TLS` | Enable TLS (`true`/`false`) |
+| `CLICKHOUSE_TLS_SKIP_VERIFY` | Skip TLS certificate verification (`true`/`false`) |
+| `CLICKHOUSE_CA_CERT` | Path to custom CA certificate file |
 | `NGINX_LOG_TYPE` | NGINX log format name |
 | `NGINX_LOG_FORMAT` | NGINX log format string |
 | `NGINX_LOG_FORMAT_TYPE` | Log format type: `text` (default) or `json` |
@@ -130,7 +133,10 @@ clickhouse:
   db: metrics
   table: nginx
   host: localhost
-  port: 9000                     # native TCP port
+  port: 9000                     # native TCP port (9440 for TLS)
+  # tls: true                    # enable TLS
+  # tls_insecure_skip_verify: false
+  # ca_cert: /etc/ssl/clickhouse-ca.pem
   credentials:
     user: default
     password:
@@ -251,6 +257,21 @@ When a ClickHouse write fails, the client retries with exponential backoff and f
 - `backoff_max_secs` — maximum delay cap (default: 30s)
 
 The backoff doubles each attempt with random jitter to avoid thundering herd.
+
+### TLS / Secure Connections
+
+For ClickHouse Cloud or any TLS-secured cluster:
+
+```yaml
+clickhouse:
+  host: your-cluster.clickhouse.cloud
+  port: 9440
+  tls: true
+  # tls_insecure_skip_verify: true  # only for self-signed certs
+  # ca_cert: /etc/ssl/custom-ca.pem # custom CA certificate
+```
+
+The default ClickHouse secure native port is `9440`. Set `tls: true` to enable encrypted connections.
 
 ### Connection Recovery
 
