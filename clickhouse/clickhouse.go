@@ -84,7 +84,7 @@ func (c *Client) Save(entries []gonx.Entry) error {
 		for _, entry := range entries {
 			row := buildRow(columns, c.cfg.ClickHouse.Columns, entry)
 			if err := batch.Append(row...); err != nil {
-				logrus.Errorf("append row: %v", err)
+				logrus.WithError(err).Error("append row")
 			}
 		}
 
@@ -170,7 +170,7 @@ func buildRow(keys []string, columns map[string]string, entry gonx.Entry) []any 
 		field := columns[col]
 		value, err := entry.Field(field)
 		if err != nil {
-			logrus.Errorf("read field %s: %v", field, err)
+			logrus.WithField("field", field).WithError(err).Error("read field")
 			row = append(row, "")
 			continue
 		}

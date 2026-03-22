@@ -74,7 +74,7 @@ func Read() *Config {
 		flag.Parse()
 	}
 
-	logrus.Info("reading config file: ", configPath)
+	logrus.WithField("path", configPath).Info("reading config file")
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {

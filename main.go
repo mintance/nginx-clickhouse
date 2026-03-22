@@ -67,6 +67,8 @@ var (
 )
 
 func main() {
+	logrus.SetFormatter(&logrus.JSONFormatter{})
+
 	cfg := configParser.Read()
 	cfg.SetEnvVariables()
 
@@ -88,7 +90,7 @@ func main() {
 		}
 	}()
 
-	logrus.Info("opening log file: ", cfg.Settings.LogPath)
+	logrus.WithField("path", cfg.Settings.LogPath).Info("opening log file")
 
 	whence := io.SeekStart
 	if cfg.Settings.SeekFromEnd {
@@ -144,7 +146,7 @@ func flush(parser *nginx.Parser, client *clickhouse.Client) {
 
 	start := time.Now()
 
-	logrus.Info("preparing to save ", len(batch), " new log entries")
+	logrus.WithField("entries", len(batch)).Info("preparing to save log entries")
 
 	entries := nginx.ParseLogs(parser, batch)
 
@@ -155,11 +157,11 @@ func flush(parser *nginx.Parser, client *clickhouse.Client) {
 	batchSize.Observe(float64(len(entries)))
 
 	if err := client.Save(entries); err != nil {
-		logrus.Error("can't save logs: ", err)
+		logrus.WithError(err).Error("can't save logs")
 		linesNotProcessed.Add(float64(len(batch)))
 		clickhouseUp.Set(0)
 	} else {
-		logrus.Info("saved ", len(batch), " new logs")
+		logrus.WithField("entries", len(batch)).Info("saved log entries")
 		linesProcessed.Add(float64(len(batch)))
 		clickhouseUp.Set(1)
 	}
