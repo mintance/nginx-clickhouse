@@ -266,6 +266,64 @@ func TestIntegrationConnectionReuse(t *testing.T) {
 	}
 }
 
+func TestIntegrationCheck(t *testing.T) {
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	cfg := testConfig()
+	client := NewClient(cfg)
+	defer client.Close()
+
+	results := client.Check()
+
+	for _, r := range results {
+		if !r.OK {
+			t.Errorf("check %q failed: %s", r.Name, r.Message)
+		}
+	}
+
+	if len(results) != 4 {
+		t.Errorf("expected 4 check results, got %d", len(results))
+	}
+}
+
+func TestIntegrationCheckMissingColumn(t *testing.T) {
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	cfg := testConfig()
+	cfg.ClickHouse.Columns["NonExistentColumn"] = "fake_field"
+
+	client := NewClient(cfg)
+	defer client.Close()
+
+	results := client.Check()
+
+	// Last result should be the columns check and should fail
+	colResult := results[len(results)-1]
+	if colResult.OK {
+		t.Error("expected columns check to fail with non-existent column")
+	}
+}
+
+func TestIntegrationCheckBadDB(t *testing.T) {
+	cfg := testConfig()
+	cfg.ClickHouse.DB = "nonexistent_db_12345"
+
+	client := NewClient(cfg)
+	defer client.Close()
+
+	results := client.Check()
+
+	// Should connect OK but database check should fail
+	if len(results) < 2 {
+		t.Fatalf("expected at least 2 results, got %d", len(results))
+	}
+	if results[1].OK {
+		t.Error("expected database check to fail")
+	}
+}
+
 // setupTestDBEnriched creates the test_nginx database and an enriched table
 // that includes extra columns for enrichment fields.
 func setupTestDBEnriched(t *testing.T) {

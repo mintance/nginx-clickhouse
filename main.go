@@ -3,6 +3,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -25,6 +27,12 @@ import (
 )
 
 const defaultMaxBufferSize = 10000
+
+var checkMode bool
+
+func init() {
+	flag.BoolVar(&checkMode, "check", false, "Validate config and ClickHouse connectivity, then exit.")
+}
 
 var (
 	linesProcessed = promauto.NewCounter(prometheus.CounterOpts{
@@ -104,6 +112,11 @@ func main() {
 	}
 
 	client := clickhouse.NewClient(cfg)
+
+	if checkMode {
+		runCheck(cfg, parser, client)
+		return
+	}
 
 	// Create buffer based on config.
 	var buf buffer.Buffer
@@ -309,5 +322,51 @@ func updateCBState(cb *circuitbreaker.CircuitBreaker) {
 		cbState.Set(1)
 	case circuitbreaker.StateHalfOpen:
 		cbState.Set(2)
+	}
+}
+
+// runCheck validates the configuration and ClickHouse connectivity, then exits.
+func runCheck(cfg *configParser.Config, parser *nginx.Parser, client *clickhouse.Client) {
+	allOK := true
+
+	// Config loaded
+	fmt.Println("✓ Config loaded")
+
+	// Log format
+	if cfg.Nginx.LogFormatType == "json" {
+		fmt.Println("✓ Log format: JSON")
+	} else if parser != nil {
+		fmt.Println("✓ Log format: text (parseable)")
+	} else {
+		fmt.Println("✗ Log format: text parser failed to initialize")
+		allOK = false
+	}
+
+	// Log file
+	if _, err := os.Stat(cfg.Settings.LogPath); err != nil {
+		fmt.Printf("✗ Log file: %s (%v)\n", cfg.Settings.LogPath, err)
+		allOK = false
+	} else {
+		fmt.Printf("✓ Log file: %s\n", cfg.Settings.LogPath)
+	}
+
+	// ClickHouse checks
+	results := client.Check()
+	for _, r := range results {
+		if r.OK {
+			fmt.Printf("✓ %s: %s\n", r.Name, r.Message)
+		} else {
+			fmt.Printf("✗ %s: %s\n", r.Name, r.Message)
+			allOK = false
+		}
+	}
+
+	client.Close()
+
+	if allOK {
+		fmt.Println("\nAll checks passed.")
+	} else {
+		fmt.Println("\nSome checks failed.")
+		os.Exit(1)
 	}
 }

@@ -414,6 +414,29 @@ A pre-built Grafana dashboard is included in [`grafana/dashboard.json`](grafana/
 
 Template variables: `database` (default: `metrics`), `table` (default: `nginx`).
 
+## Config Validation
+
+Run `--check` to validate your configuration without starting the service:
+
+```sh
+./nginx-clickhouse -config_path=config/config.yml --check
+```
+
+Output:
+```
+✓ Config loaded
+✓ Log format: JSON
+✓ Log file: /var/log/nginx/access.log
+✓ ClickHouse connection: OK (localhost:9000)
+✓ Database: OK ("metrics" exists)
+✓ Table: OK ("metrics.nginx" exists)
+✓ Columns: OK (8/8 columns match)
+
+All checks passed.
+```
+
+Validates: config syntax, log file existence, ClickHouse connectivity, database/table existence, and column mapping against the actual table schema. Exits with code 1 if any check fails.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and pull request guidelines.
