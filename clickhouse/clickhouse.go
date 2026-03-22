@@ -4,8 +4,11 @@ package clickhouse
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -132,14 +135,34 @@ func (c *Client) connect() error {
 		return fmt.Errorf("invalid port %q: %w", c.cfg.ClickHouse.Port, err)
 	}
 
-	conn, err := clickhouse.Open(&clickhouse.Options{
+	opts := &clickhouse.Options{
 		Addr: []string{fmt.Sprintf("%s:%d", c.cfg.ClickHouse.Host, port)},
 		Auth: clickhouse.Auth{
 			Database: c.cfg.ClickHouse.DB,
 			Username: c.cfg.ClickHouse.Credentials.User,
 			Password: c.cfg.ClickHouse.Credentials.Password,
 		},
-	})
+	}
+
+	if c.cfg.ClickHouse.TLS {
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: c.cfg.ClickHouse.TLSInsecureSkipVerify,
+		}
+		if c.cfg.ClickHouse.CACert != "" {
+			caCert, err := os.ReadFile(c.cfg.ClickHouse.CACert)
+			if err != nil {
+				return fmt.Errorf("read CA cert %q: %w", c.cfg.ClickHouse.CACert, err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caCert) {
+				return fmt.Errorf("invalid CA cert in %q", c.cfg.ClickHouse.CACert)
+			}
+			tlsCfg.RootCAs = pool
+		}
+		opts.TLS = tlsCfg
+	}
+
+	conn, err := clickhouse.Open(opts)
 	if err != nil {
 		return fmt.Errorf("open connection: %w", err)
 	}

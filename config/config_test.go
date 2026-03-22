@@ -360,6 +360,66 @@ func TestSetEnvVariablesCircuitBreaker(t *testing.T) {
 	}
 }
 
+func TestReadTLSConfig(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9440"
+  tls: true
+  tls_insecure_skip_verify: false
+  ca_cert: /etc/ssl/ca.pem
+nginx:
+  log_type: main
+  log_format: "$remote_addr"
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if !cfg.ClickHouse.TLS {
+		t.Error("expected TLS=true")
+	}
+	if cfg.ClickHouse.TLSInsecureSkipVerify {
+		t.Error("expected TLSInsecureSkipVerify=false")
+	}
+	if cfg.ClickHouse.CACert != "/etc/ssl/ca.pem" {
+		t.Errorf("expected CACert=/etc/ssl/ca.pem, got %s", cfg.ClickHouse.CACert)
+	}
+	if cfg.ClickHouse.Port != "9440" {
+		t.Errorf("expected Port=9440, got %s", cfg.ClickHouse.Port)
+	}
+}
+
+func TestSetEnvVariablesTLS(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("CLICKHOUSE_TLS", "true")
+	t.Setenv("CLICKHOUSE_TLS_SKIP_VERIFY", "true")
+	t.Setenv("CLICKHOUSE_CA_CERT", "/custom/ca.pem")
+
+	cfg.SetEnvVariables()
+
+	if !cfg.ClickHouse.TLS {
+		t.Error("expected TLS=true")
+	}
+	if !cfg.ClickHouse.TLSInsecureSkipVerify {
+		t.Error("expected TLSInsecureSkipVerify=true")
+	}
+	if cfg.ClickHouse.CACert != "/custom/ca.pem" {
+		t.Errorf("expected CACert=/custom/ca.pem, got %s", cfg.ClickHouse.CACert)
+	}
+}
+
 func TestReadLogFormatType(t *testing.T) {
 	content := `
 settings:
