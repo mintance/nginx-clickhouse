@@ -14,7 +14,6 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/satyrius/gonx"
 	"github.com/sirupsen/logrus"
 
 	"github.com/mintance/nginx-clickhouse/config"
@@ -39,7 +38,7 @@ func NewClient(cfg *config.Config) *Client {
 // Save batch-inserts the parsed log entries into ClickHouse. It retries
 // transient failures using exponential backoff based on the retry
 // configuration in cfg.
-func (c *Client) Save(entries []gonx.Entry) error {
+func (c *Client) Save(entries []nginx.LogEntry) error {
 	if len(entries) == 0 || len(c.cfg.ClickHouse.Columns) == 0 {
 		return nil
 	}
@@ -164,7 +163,7 @@ func (c *Client) resetConn() {
 
 // buildRow converts a single parsed log entry into a slice of values ordered
 // by the given column keys.
-func buildRow(keys []string, columns map[string]string, entry gonx.Entry) []any {
+func buildRow(keys []string, columns map[string]string, entry nginx.LogEntry) []any {
 	row := make([]any, 0, len(keys))
 	for _, col := range keys {
 		field := columns[col]

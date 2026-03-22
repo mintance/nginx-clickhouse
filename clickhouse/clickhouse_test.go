@@ -6,6 +6,7 @@ import (
 	"github.com/satyrius/gonx"
 
 	"github.com/mintance/nginx-clickhouse/config"
+	"github.com/mintance/nginx-clickhouse/nginx"
 )
 
 func TestNewClient(t *testing.T) {
@@ -38,7 +39,7 @@ func TestSaveEmptyColumns(t *testing.T) {
 	parser := gonx.NewParser(`$remote_addr`)
 	entry, _ := parser.ParseString(`192.168.1.1`)
 
-	err := client.Save([]gonx.Entry{*entry})
+	err := client.Save([]nginx.LogEntry{entry})
 	if err != nil {
 		t.Errorf("Save with empty columns should return nil, got %v", err)
 	}
@@ -76,7 +77,7 @@ func TestBuildRow(t *testing.T) {
 		t.Fatalf("unexpected error parsing log: %v", err)
 	}
 
-	row := buildRow(keys, columns, *entry)
+	row := buildRow(keys, columns, entry)
 
 	if len(row) != 2 {
 		t.Fatalf("expected 2 fields in row, got %d", len(row))
@@ -115,7 +116,7 @@ func TestBuildRowMissingField(t *testing.T) {
 	parser := gonx.NewParser(`$remote_addr`)
 	entry, _ := parser.ParseString(`192.168.1.1`)
 
-	row := buildRow(keys, columns, *entry)
+	row := buildRow(keys, columns, entry)
 
 	if len(row) != 2 {
 		t.Fatalf("expected 2 fields (with fallback), got %d", len(row))
@@ -129,7 +130,7 @@ func TestBuildRowEmpty(t *testing.T) {
 	parser := gonx.NewParser(`$remote_addr`)
 	entry, _ := parser.ParseString(`192.168.1.1`)
 
-	row := buildRow(keys, columns, *entry)
+	row := buildRow(keys, columns, entry)
 
 	if len(row) != 0 {
 		t.Errorf("expected 0 fields for empty columns, got %d", len(row))
