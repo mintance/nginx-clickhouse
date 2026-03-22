@@ -186,6 +186,64 @@ nginx:
 	}
 }
 
+func TestReadRetryConfig(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+  retry:
+    max_retries: 3
+    backoff_initial_secs: 1
+    backoff_max_secs: 30
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+nginx:
+  log_type: main
+  log_format: "$remote_addr"
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if cfg.Settings.Retry.MaxRetries != 3 {
+		t.Errorf("expected MaxRetries=3, got %d", cfg.Settings.Retry.MaxRetries)
+	}
+	if cfg.Settings.Retry.BackoffInitialSecs != 1 {
+		t.Errorf("expected BackoffInitialSecs=1, got %d", cfg.Settings.Retry.BackoffInitialSecs)
+	}
+	if cfg.Settings.Retry.BackoffMaxSecs != 30 {
+		t.Errorf("expected BackoffMaxSecs=30, got %d", cfg.Settings.Retry.BackoffMaxSecs)
+	}
+}
+
+func TestSetEnvVariablesRetry(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("RETRY_MAX", "5")
+	t.Setenv("RETRY_BACKOFF_INITIAL", "2")
+	t.Setenv("RETRY_BACKOFF_MAX", "60")
+
+	cfg.SetEnvVariables()
+
+	if cfg.Settings.Retry.MaxRetries != 5 {
+		t.Errorf("expected MaxRetries=5, got %d", cfg.Settings.Retry.MaxRetries)
+	}
+	if cfg.Settings.Retry.BackoffInitialSecs != 2 {
+		t.Errorf("expected BackoffInitialSecs=2, got %d", cfg.Settings.Retry.BackoffInitialSecs)
+	}
+	if cfg.Settings.Retry.BackoffMaxSecs != 60 {
+		t.Errorf("expected BackoffMaxSecs=60, got %d", cfg.Settings.Retry.BackoffMaxSecs)
+	}
+}
+
 func TestSetEnvVariablesInvalidInterval(t *testing.T) {
 	cfg := &Config{}
 	cfg.Settings.Interval = 5

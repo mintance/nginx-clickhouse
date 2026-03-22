@@ -4,6 +4,10 @@ settings:
   log_path: logs/test.log # path to logfile
   seek_from_end: false # start reading from the last line (to prevent duplicates after restart)
   max_buffer_size: 10000 # max log lines to buffer before forcing a flush (prevents memory issues)
+  retry:
+    max_retries: 3           # max retry attempts on ClickHouse failure (0 = no retry)
+    backoff_initial_secs: 1  # initial backoff delay in seconds
+    backoff_max_secs: 30     # maximum backoff delay in seconds
 # ClickHouse credentials
 clickhouse:
  db: metrics

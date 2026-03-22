@@ -24,12 +24,20 @@ type Config struct {
 	Nginx      NginxConfig      `yaml:"nginx"`
 }
 
+// RetryConfig holds retry behavior settings for ClickHouse writes.
+type RetryConfig struct {
+	MaxRetries         int `yaml:"max_retries"`
+	BackoffInitialSecs int `yaml:"backoff_initial_secs"`
+	BackoffMaxSecs     int `yaml:"backoff_max_secs"`
+}
+
 // SettingsConfig holds general application settings.
 type SettingsConfig struct {
-	Interval      int    `yaml:"interval"`
-	LogPath       string `yaml:"log_path"`
-	SeekFromEnd   bool   `yaml:"seek_from_end"`
-	MaxBufferSize int    `yaml:"max_buffer_size"`
+	Interval      int         `yaml:"interval"`
+	LogPath       string      `yaml:"log_path"`
+	SeekFromEnd   bool        `yaml:"seek_from_end"`
+	MaxBufferSize int         `yaml:"max_buffer_size"`
+	Retry         RetryConfig `yaml:"retry"`
 }
 
 // ClickHouseConfig holds ClickHouse connection and schema settings.
@@ -103,6 +111,30 @@ func (c *Config) SetEnvVariables() {
 			logrus.Errorf("invalid MAX_BUFFER_SIZE %q: %v", v, err)
 		}
 		c.Settings.MaxBufferSize = size
+	}
+
+	if v := os.Getenv("RETRY_MAX"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid RETRY_MAX %q: %v", v, err)
+		}
+		c.Settings.Retry.MaxRetries = n
+	}
+
+	if v := os.Getenv("RETRY_BACKOFF_INITIAL"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid RETRY_BACKOFF_INITIAL %q: %v", v, err)
+		}
+		c.Settings.Retry.BackoffInitialSecs = n
+	}
+
+	if v := os.Getenv("RETRY_BACKOFF_MAX"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid RETRY_BACKOFF_MAX %q: %v", v, err)
+		}
+		c.Settings.Retry.BackoffMaxSecs = n
 	}
 
 	if v := os.Getenv("CLICKHOUSE_HOST"); v != "" {
