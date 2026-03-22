@@ -49,6 +49,19 @@ go run main.go            # Run locally (reads config/config.yml by default)
 - `gopkg.in/yaml.v2` — YAML config parsing
 - No external deps for retry, buffer, or circuit breaker (pure Go stdlib)
 
+## Pre-Push Checklist
+
+Always run before committing or pushing:
+
+```bash
+gofmt -w .                              # Format all files
+test -z "$(gofmt -l . | grep -v '^vendor/')"  # Verify no unformatted files
+go vet ./...                            # Static analysis
+go test ./... -race                     # All tests with race detector
+```
+
+CI will reject PRs that fail any of these checks.
+
 ## Code Conventions
 
 - Standard Go formatting (`gofmt`), verified by `go vet`
