@@ -50,15 +50,15 @@ func ParseField(key, value string) any {
 		"status", "connection", "request_length", "body_bytes_sent":
 		val, err := strconv.Atoi(value)
 		if err != nil {
-			logrus.Errorf("field %s: cannot convert %q to int: %v", key, value, err)
+			logrus.WithFields(logrus.Fields{"field": key, "value": value}).WithError(err).Error("cannot convert to int")
 		}
 		return val
 
 	case "request_time", "upstream_connect_time", "upstream_header_time",
 		"upstream_response_time", "msec":
-		val, err := strconv.ParseFloat(value, 32)
+		val, err := strconv.ParseFloat(value, 64)
 		if err != nil {
-			logrus.Errorf("field %s: cannot convert %q to float: %v", key, value, err)
+			logrus.WithFields(logrus.Fields{"field": key, "value": value}).WithError(err).Error("cannot convert to float")
 		}
 		return val
 

@@ -24,12 +24,36 @@ type Config struct {
 	Nginx      NginxConfig      `yaml:"nginx"`
 }
 
+// RetryConfig holds retry behavior settings for ClickHouse writes.
+type RetryConfig struct {
+	MaxRetries         int `yaml:"max_retries"`
+	BackoffInitialSecs int `yaml:"backoff_initial_secs"`
+	BackoffMaxSecs     int `yaml:"backoff_max_secs"`
+}
+
 // SettingsConfig holds general application settings.
 type SettingsConfig struct {
-	Interval      int    `yaml:"interval"`
-	LogPath       string `yaml:"log_path"`
-	SeekFromEnd   bool   `yaml:"seek_from_end"`
-	MaxBufferSize int    `yaml:"max_buffer_size"`
+	Interval       int                  `yaml:"interval"`
+	LogPath        string               `yaml:"log_path"`
+	SeekFromEnd    bool                 `yaml:"seek_from_end"`
+	MaxBufferSize  int                  `yaml:"max_buffer_size"`
+	Retry          RetryConfig          `yaml:"retry"`
+	Buffer         BufferConfig         `yaml:"buffer"`
+	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+// BufferConfig holds buffering settings.
+type BufferConfig struct {
+	Type         string `yaml:"type"`           // "memory" (default) or "disk"
+	DiskPath     string `yaml:"disk_path"`      // directory for disk buffer segments
+	MaxDiskBytes int64  `yaml:"max_disk_bytes"` // max disk usage in bytes
+}
+
+// CircuitBreakerConfig holds circuit breaker settings.
+type CircuitBreakerConfig struct {
+	Enabled      bool `yaml:"enabled"`
+	Threshold    int  `yaml:"threshold"`     // consecutive failures to open
+	CooldownSecs int  `yaml:"cooldown_secs"` // seconds before half-open probe
 }
 
 // ClickHouseConfig holds ClickHouse connection and schema settings.
@@ -66,7 +90,7 @@ func Read() *Config {
 		flag.Parse()
 	}
 
-	logrus.Info("reading config file: ", configPath)
+	logrus.WithField("path", configPath).Info("reading config file")
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -93,16 +117,45 @@ func (c *Config) SetEnvVariables() {
 		interval, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid FLUSH_INTERVAL %q: %v", v, err)
+		} else {
+			c.Settings.Interval = interval
 		}
-		c.Settings.Interval = interval
 	}
 
 	if v := os.Getenv("MAX_BUFFER_SIZE"); v != "" {
 		size, err := strconv.Atoi(v)
 		if err != nil {
 			logrus.Errorf("invalid MAX_BUFFER_SIZE %q: %v", v, err)
+		} else {
+			c.Settings.MaxBufferSize = size
 		}
-		c.Settings.MaxBufferSize = size
+	}
+
+	if v := os.Getenv("RETRY_MAX"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid RETRY_MAX %q: %v", v, err)
+		} else {
+			c.Settings.Retry.MaxRetries = n
+		}
+	}
+
+	if v := os.Getenv("RETRY_BACKOFF_INITIAL"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid RETRY_BACKOFF_INITIAL %q: %v", v, err)
+		} else {
+			c.Settings.Retry.BackoffInitialSecs = n
+		}
+	}
+
+	if v := os.Getenv("RETRY_BACKOFF_MAX"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid RETRY_BACKOFF_MAX %q: %v", v, err)
+		} else {
+			c.Settings.Retry.BackoffMaxSecs = n
+		}
 	}
 
 	if v := os.Getenv("CLICKHOUSE_HOST"); v != "" {
@@ -129,5 +182,40 @@ func (c *Config) SetEnvVariables() {
 	}
 	if v := os.Getenv("NGINX_LOG_FORMAT"); v != "" {
 		c.Nginx.LogFormat = v
+	}
+
+	if v := os.Getenv("BUFFER_TYPE"); v != "" {
+		c.Settings.Buffer.Type = v
+	}
+	if v := os.Getenv("BUFFER_DISK_PATH"); v != "" {
+		c.Settings.Buffer.DiskPath = v
+	}
+	if v := os.Getenv("BUFFER_MAX_DISK_BYTES"); v != "" {
+		maxBytes, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			logrus.Errorf("invalid BUFFER_MAX_DISK_BYTES %q: %v", v, err)
+		} else {
+			c.Settings.Buffer.MaxDiskBytes = maxBytes
+		}
+	}
+
+	if v := os.Getenv("CIRCUIT_BREAKER_ENABLED"); v != "" {
+		c.Settings.CircuitBreaker.Enabled = v == "true"
+	}
+	if v := os.Getenv("CIRCUIT_BREAKER_THRESHOLD"); v != "" {
+		threshold, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid CIRCUIT_BREAKER_THRESHOLD %q: %v", v, err)
+		} else {
+			c.Settings.CircuitBreaker.Threshold = threshold
+		}
+	}
+	if v := os.Getenv("CIRCUIT_BREAKER_COOLDOWN"); v != "" {
+		cooldown, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid CIRCUIT_BREAKER_COOLDOWN %q: %v", v, err)
+		} else {
+			c.Settings.CircuitBreaker.CooldownSecs = cooldown
+		}
 	}
 }

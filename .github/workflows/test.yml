@@ -15,7 +15,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Check formatting
-        run: test -z "$(gofmt -l .)"
+        run: test -z "$(gofmt -l . | grep -v '^vendor/')"
 
       - name: Vet
         run: go vet ./...
