@@ -52,8 +52,8 @@ type BufferConfig struct {
 // CircuitBreakerConfig holds circuit breaker settings.
 type CircuitBreakerConfig struct {
 	Enabled      bool `yaml:"enabled"`
-	Threshold    int  `yaml:"threshold"`      // consecutive failures to open
-	CooldownSecs int  `yaml:"cooldown_secs"`  // seconds before half-open probe
+	Threshold    int  `yaml:"threshold"`     // consecutive failures to open
+	CooldownSecs int  `yaml:"cooldown_secs"` // seconds before half-open probe
 }
 
 // ClickHouseConfig holds ClickHouse connection and schema settings.
