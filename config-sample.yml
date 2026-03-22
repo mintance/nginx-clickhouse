@@ -4,10 +4,14 @@ settings:
   log_path: logs/test.log # path to logfile
   seek_from_end: false # start reading from the last line (to prevent duplicates after restart)
   max_buffer_size: 10000 # max log lines to buffer before forcing a flush (prevents memory issues)
-  retry:
-    max_retries: 3           # max retry attempts on ClickHouse failure (0 = no retry)
-    backoff_initial_secs: 1  # initial backoff delay in seconds
-    backoff_max_secs: 30     # maximum backoff delay in seconds
+  buffer:
+    type: memory              # "memory" (default) or "disk"
+    # disk_path: /var/lib/nginx-clickhouse/buffer  # directory for disk buffer segments
+    # max_disk_bytes: 1073741824                    # 1GB max disk usage
+  circuit_breaker:
+    enabled: false            # enable circuit breaker
+    threshold: 5              # consecutive failures before opening
+    cooldown_secs: 60         # seconds before half-open probe
 # ClickHouse credentials
 clickhouse:
  db: metrics

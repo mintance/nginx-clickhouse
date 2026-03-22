@@ -192,9 +192,9 @@ settings:
   interval: 5
   log_path: /tmp/test.log
   retry:
-    max_retries: 3
-    backoff_initial_secs: 1
-    backoff_max_secs: 30
+    max_retries: 5
+    backoff_initial_secs: 2
+    backoff_max_secs: 60
 clickhouse:
   db: test
   table: t
@@ -213,14 +213,14 @@ nginx:
 	configPath = tmpFile
 	cfg := Read()
 
-	if cfg.Settings.Retry.MaxRetries != 3 {
-		t.Errorf("expected MaxRetries=3, got %d", cfg.Settings.Retry.MaxRetries)
+	if cfg.Settings.Retry.MaxRetries != 5 {
+		t.Errorf("expected MaxRetries=5, got %d", cfg.Settings.Retry.MaxRetries)
 	}
-	if cfg.Settings.Retry.BackoffInitialSecs != 1 {
-		t.Errorf("expected BackoffInitialSecs=1, got %d", cfg.Settings.Retry.BackoffInitialSecs)
+	if cfg.Settings.Retry.BackoffInitialSecs != 2 {
+		t.Errorf("expected BackoffInitialSecs=2, got %d", cfg.Settings.Retry.BackoffInitialSecs)
 	}
-	if cfg.Settings.Retry.BackoffMaxSecs != 30 {
-		t.Errorf("expected BackoffMaxSecs=30, got %d", cfg.Settings.Retry.BackoffMaxSecs)
+	if cfg.Settings.Retry.BackoffMaxSecs != 60 {
+		t.Errorf("expected BackoffMaxSecs=60, got %d", cfg.Settings.Retry.BackoffMaxSecs)
 	}
 }
 
@@ -241,6 +241,122 @@ func TestSetEnvVariablesRetry(t *testing.T) {
 	}
 	if cfg.Settings.Retry.BackoffMaxSecs != 60 {
 		t.Errorf("expected BackoffMaxSecs=60, got %d", cfg.Settings.Retry.BackoffMaxSecs)
+	}
+}
+
+func TestReadBufferConfig(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+  buffer:
+    type: disk
+    disk_path: /var/lib/buf
+    max_disk_bytes: 2147483648
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+nginx:
+  log_type: main
+  log_format: "$remote_addr"
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if cfg.Settings.Buffer.Type != "disk" {
+		t.Errorf("expected Buffer.Type=disk, got %s", cfg.Settings.Buffer.Type)
+	}
+	if cfg.Settings.Buffer.DiskPath != "/var/lib/buf" {
+		t.Errorf("expected Buffer.DiskPath=/var/lib/buf, got %s", cfg.Settings.Buffer.DiskPath)
+	}
+	if cfg.Settings.Buffer.MaxDiskBytes != 2147483648 {
+		t.Errorf("expected Buffer.MaxDiskBytes=2147483648, got %d", cfg.Settings.Buffer.MaxDiskBytes)
+	}
+}
+
+func TestSetEnvVariablesBuffer(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("BUFFER_TYPE", "disk")
+	t.Setenv("BUFFER_DISK_PATH", "/tmp/buf")
+	t.Setenv("BUFFER_MAX_DISK_BYTES", "1073741824")
+
+	cfg.SetEnvVariables()
+
+	if cfg.Settings.Buffer.Type != "disk" {
+		t.Errorf("expected Buffer.Type=disk, got %s", cfg.Settings.Buffer.Type)
+	}
+	if cfg.Settings.Buffer.DiskPath != "/tmp/buf" {
+		t.Errorf("expected Buffer.DiskPath=/tmp/buf, got %s", cfg.Settings.Buffer.DiskPath)
+	}
+	if cfg.Settings.Buffer.MaxDiskBytes != 1073741824 {
+		t.Errorf("expected Buffer.MaxDiskBytes=1073741824, got %d", cfg.Settings.Buffer.MaxDiskBytes)
+	}
+}
+
+func TestReadCircuitBreakerConfig(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+  circuit_breaker:
+    enabled: true
+    threshold: 10
+    cooldown_secs: 30
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+nginx:
+  log_type: main
+  log_format: "$remote_addr"
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if !cfg.Settings.CircuitBreaker.Enabled {
+		t.Error("expected CircuitBreaker.Enabled=true")
+	}
+	if cfg.Settings.CircuitBreaker.Threshold != 10 {
+		t.Errorf("expected CircuitBreaker.Threshold=10, got %d", cfg.Settings.CircuitBreaker.Threshold)
+	}
+	if cfg.Settings.CircuitBreaker.CooldownSecs != 30 {
+		t.Errorf("expected CircuitBreaker.CooldownSecs=30, got %d", cfg.Settings.CircuitBreaker.CooldownSecs)
+	}
+}
+
+func TestSetEnvVariablesCircuitBreaker(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("CIRCUIT_BREAKER_ENABLED", "true")
+	t.Setenv("CIRCUIT_BREAKER_THRESHOLD", "5")
+	t.Setenv("CIRCUIT_BREAKER_COOLDOWN", "60")
+
+	cfg.SetEnvVariables()
+
+	if !cfg.Settings.CircuitBreaker.Enabled {
+		t.Error("expected CircuitBreaker.Enabled=true")
+	}
+	if cfg.Settings.CircuitBreaker.Threshold != 5 {
+		t.Errorf("expected CircuitBreaker.Threshold=5, got %d", cfg.Settings.CircuitBreaker.Threshold)
+	}
+	if cfg.Settings.CircuitBreaker.CooldownSecs != 60 {
+		t.Errorf("expected CircuitBreaker.CooldownSecs=60, got %d", cfg.Settings.CircuitBreaker.CooldownSecs)
 	}
 }
 

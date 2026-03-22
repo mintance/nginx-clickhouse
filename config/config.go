@@ -33,11 +33,27 @@ type RetryConfig struct {
 
 // SettingsConfig holds general application settings.
 type SettingsConfig struct {
-	Interval      int         `yaml:"interval"`
-	LogPath       string      `yaml:"log_path"`
-	SeekFromEnd   bool        `yaml:"seek_from_end"`
-	MaxBufferSize int         `yaml:"max_buffer_size"`
-	Retry         RetryConfig `yaml:"retry"`
+	Interval       int                  `yaml:"interval"`
+	LogPath        string               `yaml:"log_path"`
+	SeekFromEnd    bool                 `yaml:"seek_from_end"`
+	MaxBufferSize  int                  `yaml:"max_buffer_size"`
+	Retry          RetryConfig          `yaml:"retry"`
+	Buffer         BufferConfig         `yaml:"buffer"`
+	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+// BufferConfig holds buffering settings.
+type BufferConfig struct {
+	Type         string `yaml:"type"`           // "memory" (default) or "disk"
+	DiskPath     string `yaml:"disk_path"`      // directory for disk buffer segments
+	MaxDiskBytes int64  `yaml:"max_disk_bytes"` // max disk usage in bytes
+}
+
+// CircuitBreakerConfig holds circuit breaker settings.
+type CircuitBreakerConfig struct {
+	Enabled      bool `yaml:"enabled"`
+	Threshold    int  `yaml:"threshold"`      // consecutive failures to open
+	CooldownSecs int  `yaml:"cooldown_secs"`  // seconds before half-open probe
 }
 
 // ClickHouseConfig holds ClickHouse connection and schema settings.
@@ -161,5 +177,37 @@ func (c *Config) SetEnvVariables() {
 	}
 	if v := os.Getenv("NGINX_LOG_FORMAT"); v != "" {
 		c.Nginx.LogFormat = v
+	}
+
+	if v := os.Getenv("BUFFER_TYPE"); v != "" {
+		c.Settings.Buffer.Type = v
+	}
+	if v := os.Getenv("BUFFER_DISK_PATH"); v != "" {
+		c.Settings.Buffer.DiskPath = v
+	}
+	if v := os.Getenv("BUFFER_MAX_DISK_BYTES"); v != "" {
+		maxBytes, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			logrus.Errorf("invalid BUFFER_MAX_DISK_BYTES %q: %v", v, err)
+		}
+		c.Settings.Buffer.MaxDiskBytes = maxBytes
+	}
+
+	if v := os.Getenv("CIRCUIT_BREAKER_ENABLED"); v != "" {
+		c.Settings.CircuitBreaker.Enabled = v == "true"
+	}
+	if v := os.Getenv("CIRCUIT_BREAKER_THRESHOLD"); v != "" {
+		threshold, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid CIRCUIT_BREAKER_THRESHOLD %q: %v", v, err)
+		}
+		c.Settings.CircuitBreaker.Threshold = threshold
+	}
+	if v := os.Getenv("CIRCUIT_BREAKER_COOLDOWN"); v != "" {
+		cooldown, err := strconv.Atoi(v)
+		if err != nil {
+			logrus.Errorf("invalid CIRCUIT_BREAKER_COOLDOWN %q: %v", v, err)
+		}
+		c.Settings.CircuitBreaker.CooldownSecs = cooldown
 	}
 }
