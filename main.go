@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -18,17 +17,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 
+	"github.com/mintance/nginx-clickhouse/buffer"
+	"github.com/mintance/nginx-clickhouse/circuitbreaker"
 	"github.com/mintance/nginx-clickhouse/clickhouse"
 	configParser "github.com/mintance/nginx-clickhouse/config"
 	"github.com/mintance/nginx-clickhouse/nginx"
 )
 
 const defaultMaxBufferSize = 10000
-
-var (
-	mu   sync.Mutex
-	logs []string
-)
 
 var (
 	linesProcessed = promauto.NewCounter(prometheus.CounterOpts{
@@ -67,6 +63,15 @@ var (
 		Help:    "Number of log entries per flush",
 		Buckets: []float64{10, 50, 100, 500, 1000, 5000, 10000},
 	})
+
+	cbState = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "nginx_clickhouse_circuit_breaker_state",
+		Help: "Circuit breaker state (0=closed, 1=open, 2=half-open)",
+	})
+	cbRejections = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_circuit_breaker_rejections_total",
+		Help: "Total flushes rejected by circuit breaker",
+	})
 )
 
 func main() {
@@ -85,6 +90,50 @@ func main() {
 	}
 
 	client := clickhouse.NewClient(cfg)
+
+	// Create buffer based on config.
+	var buf buffer.Buffer
+	switch cfg.Settings.Buffer.Type {
+	case "disk":
+		diskBuf, err := buffer.NewDiskBuffer(cfg.Settings.Buffer.DiskPath, cfg.Settings.Buffer.MaxDiskBytes)
+		if err != nil {
+			logrus.WithError(err).Fatal("can't create disk buffer")
+		}
+		buf = diskBuf
+		logrus.WithField("path", cfg.Settings.Buffer.DiskPath).Info("using disk buffer")
+	default:
+		buf = buffer.NewMemoryBuffer(cfg.Settings.MaxBufferSize)
+		logrus.Info("using memory buffer")
+	}
+
+	// Replay any lines from a previous session (crash recovery).
+	if recovered, err := buf.Replay(); err != nil {
+		logrus.WithError(err).Error("buffer replay failed")
+	} else if len(recovered) > 0 {
+		logrus.WithField("lines", len(recovered)).Info("replaying recovered log lines")
+		entries := nginx.ParseLogs(parser, recovered)
+		if err := client.Save(entries); err != nil {
+			logrus.WithError(err).Error("failed to save recovered lines")
+		}
+	}
+
+	// Create circuit breaker if enabled.
+	var cb *circuitbreaker.CircuitBreaker
+	if cfg.Settings.CircuitBreaker.Enabled {
+		threshold := cfg.Settings.CircuitBreaker.Threshold
+		if threshold == 0 {
+			threshold = 5
+		}
+		cooldown := time.Duration(cfg.Settings.CircuitBreaker.CooldownSecs) * time.Second
+		if cooldown == 0 {
+			cooldown = 60 * time.Second
+		}
+		cb = circuitbreaker.New(threshold, cooldown)
+		logrus.WithFields(logrus.Fields{
+			"threshold": threshold,
+			"cooldown":  cooldown,
+		}).Info("circuit breaker enabled")
+	}
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
@@ -118,7 +167,7 @@ func main() {
 		logrus.Fatal("can't tail log file: ", err)
 	}
 
-	go flushLoop(cfg, parser, client)
+	go flushLoop(cfg, buf, parser, client, cb)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
@@ -128,10 +177,15 @@ func main() {
 		logrus.WithField("signal", sig.String()).Info("received shutdown signal")
 
 		// Flush remaining buffer.
-		flush(parser, client)
+		flush(buf, parser, client, cb)
 
 		// Close ClickHouse connection.
 		client.Close()
+
+		// Close disk buffer if applicable.
+		if closer, ok := buf.(io.Closer); ok {
+			closer.Close()
+		}
 
 		logrus.Info("shutdown complete")
 		os.Exit(0)
@@ -139,47 +193,55 @@ func main() {
 
 	for line := range t.Lines() {
 		linesRead.Inc()
-		mu.Lock()
-		logs = append(logs, strings.TrimSpace(line.String()))
-		bufferSize.Set(float64(len(logs)))
-		shouldFlush := len(logs) >= cfg.Settings.MaxBufferSize
-		mu.Unlock()
-
-		if shouldFlush {
-			flush(parser, client)
+		line := strings.TrimSpace(line.String())
+		if err := buf.Write(line); err != nil {
+			logrus.WithError(err).Warn("buffer write failed, line dropped")
+			linesNotProcessed.Inc()
+			continue
+		}
+		bufferSize.Set(float64(buf.Len()))
+		if buf.Len() >= cfg.Settings.MaxBufferSize {
+			flush(buf, parser, client, cb)
 		}
 	}
 }
 
 // flushLoop periodically flushes buffered log lines to ClickHouse.
-func flushLoop(cfg *configParser.Config, parser *nginx.Parser, client *clickhouse.Client) {
+func flushLoop(cfg *configParser.Config, buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker) {
 	interval := time.Duration(cfg.Settings.Interval) * time.Second
 	for {
 		time.Sleep(interval)
-		flush(parser, client)
+		flush(buf, parser, client, cb)
 	}
 }
 
 // flush drains the log buffer and saves entries to ClickHouse.
-func flush(parser *nginx.Parser, client *clickhouse.Client) {
-	mu.Lock()
-	if len(logs) == 0 {
-		mu.Unlock()
+func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker) {
+	lines, err := buf.ReadAll()
+	if err != nil {
+		logrus.WithError(err).Error("buffer read failed")
+		return
+	}
+	if len(lines) == 0 {
+		return
+	}
+	bufferSize.Set(0)
+
+	// Circuit breaker check.
+	if cb != nil && !cb.Allow() {
+		logrus.Warn("circuit breaker open, skipping flush")
+		cbRejections.Inc()
+		linesNotProcessed.Add(float64(len(lines)))
 		return
 	}
 
-	batch := logs
-	logs = nil
-	bufferSize.Set(0)
-	mu.Unlock()
-
 	start := time.Now()
 
-	logrus.WithField("entries", len(batch)).Info("preparing to save log entries")
+	logrus.WithField("entries", len(lines)).Info("preparing to save log entries")
 
-	entries := nginx.ParseLogs(parser, batch)
+	entries := nginx.ParseLogs(parser, lines)
 
-	parseErrs := float64(len(batch) - len(entries))
+	parseErrs := float64(len(lines) - len(entries))
 	if parseErrs > 0 {
 		parseErrors.Add(parseErrs)
 	}
@@ -187,13 +249,34 @@ func flush(parser *nginx.Parser, client *clickhouse.Client) {
 
 	if err := client.Save(entries); err != nil {
 		logrus.WithError(err).Error("can't save logs")
-		linesNotProcessed.Add(float64(len(batch)))
+		linesNotProcessed.Add(float64(len(lines)))
 		clickhouseUp.Set(0)
+		if cb != nil {
+			cb.RecordFailure()
+			updateCBState(cb)
+		}
 	} else {
-		logrus.WithField("entries", len(batch)).Info("saved log entries")
-		linesProcessed.Add(float64(len(batch)))
+		logrus.WithField("entries", len(lines)).Info("saved log entries")
+		linesProcessed.Add(float64(len(lines)))
 		clickhouseUp.Set(1)
+		if cb != nil {
+			cb.RecordSuccess()
+			updateCBState(cb)
+		}
 	}
 
 	flushDuration.Observe(time.Since(start).Seconds())
+}
+
+// updateCBState sets the circuit breaker Prometheus gauge based on the
+// current state.
+func updateCBState(cb *circuitbreaker.CircuitBreaker) {
+	switch cb.State() {
+	case circuitbreaker.StateClosed:
+		cbState.Set(0)
+	case circuitbreaker.StateOpen:
+		cbState.Set(1)
+	case circuitbreaker.StateHalfOpen:
+		cbState.Set(2)
+	}
 }
