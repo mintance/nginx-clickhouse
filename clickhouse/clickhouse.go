@@ -67,8 +67,13 @@ func (c *Client) Save(entries []gonx.Entry) error {
 		}
 
 		columns := slices.Collect(maps.Keys(c.cfg.ClickHouse.Columns))
-		table := c.cfg.ClickHouse.DB + "." + c.cfg.ClickHouse.Table
-		query := fmt.Sprintf("INSERT INTO %s (%s)", table, strings.Join(columns, ", "))
+		slices.Sort(columns)
+		table := fmt.Sprintf("`%s`.`%s`", c.cfg.ClickHouse.DB, c.cfg.ClickHouse.Table)
+		quoted := make([]string, len(columns))
+		for i, col := range columns {
+			quoted[i] = "`" + col + "`"
+		}
+		query := fmt.Sprintf("INSERT INTO %s (%s)", table, strings.Join(quoted, ", "))
 
 		batch, err := c.conn.PrepareBatch(context.Background(), query)
 		if err != nil {

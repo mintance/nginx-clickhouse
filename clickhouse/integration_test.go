@@ -136,7 +136,10 @@ func TestIntegrationSave(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	c, _ := clickhouse.Open(testConnOpts("test_nginx"))
+	c, err := clickhouse.Open(testConnOpts("test_nginx"))
+	if err != nil {
+		t.Fatalf("open connection: %v", err)
+	}
 	defer c.Close()
 
 	var count uint64
@@ -205,7 +208,10 @@ func TestIntegrationSaveMultipleBatches(t *testing.T) {
 		t.Fatalf("second Save: %v", err)
 	}
 
-	c, _ := clickhouse.Open(testConnOpts("test_nginx"))
+	c, err := clickhouse.Open(testConnOpts("test_nginx"))
+	if err != nil {
+		t.Fatalf("open connection: %v", err)
+	}
 	defer c.Close()
 
 	var count uint64
