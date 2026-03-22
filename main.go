@@ -80,13 +80,27 @@ func main() {
 	cfg := configParser.Read()
 	cfg.SetEnvVariables()
 
+	// Resolve "auto" hostname enrichment.
+	if cfg.Settings.Enrichments.Hostname == "auto" {
+		h, err := os.Hostname()
+		if err != nil {
+			logrus.WithError(err).Warn("failed to resolve hostname for enrichment")
+		} else {
+			cfg.Settings.Enrichments.Hostname = h
+		}
+	}
+
 	if cfg.Settings.MaxBufferSize == 0 {
 		cfg.Settings.MaxBufferSize = defaultMaxBufferSize
 	}
 
-	parser, err := nginx.NewParser(cfg)
-	if err != nil {
-		logrus.Fatal("can't parse nginx log format: ", err)
+	var parser *nginx.Parser
+	if cfg.Nginx.LogFormatType != "json" {
+		var err error
+		parser, err = nginx.NewParser(cfg)
+		if err != nil {
+			logrus.Fatal("can't parse nginx log format: ", err)
+		}
 	}
 
 	client := clickhouse.NewClient(cfg)
@@ -111,7 +125,12 @@ func main() {
 		logrus.WithError(err).Error("buffer replay failed")
 	} else if len(recovered) > 0 {
 		logrus.WithField("lines", len(recovered)).Info("replaying recovered log lines")
-		entries := nginx.ParseLogs(parser, recovered)
+		var entries []nginx.LogEntry
+		if parser != nil {
+			entries = nginx.ParseLogs(parser, recovered)
+		} else {
+			entries = nginx.ParseJSONLogs(recovered)
+		}
 		if err := client.Save(entries); err != nil {
 			logrus.WithError(err).Error("failed to save recovered lines")
 		}
@@ -238,7 +257,12 @@ func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, c
 
 	logrus.WithField("entries", len(lines)).Info("preparing to save log entries")
 
-	entries := nginx.ParseLogs(parser, lines)
+	var entries []nginx.LogEntry
+	if parser != nil {
+		entries = nginx.ParseLogs(parser, lines)
+	} else {
+		entries = nginx.ParseJSONLogs(lines)
+	}
 
 	parseErrs := float64(len(lines) - len(entries))
 	if parseErrs > 0 {

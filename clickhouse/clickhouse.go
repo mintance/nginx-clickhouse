@@ -14,7 +14,6 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/satyrius/gonx"
 	"github.com/sirupsen/logrus"
 
 	"github.com/mintance/nginx-clickhouse/config"
@@ -39,7 +38,7 @@ func NewClient(cfg *config.Config) *Client {
 // Save batch-inserts the parsed log entries into ClickHouse. It retries
 // transient failures using exponential backoff based on the retry
 // configuration in cfg.
-func (c *Client) Save(entries []gonx.Entry) error {
+func (c *Client) Save(entries []nginx.LogEntry) error {
 	if len(entries) == 0 || len(c.cfg.ClickHouse.Columns) == 0 {
 		return nil
 	}
@@ -82,7 +81,7 @@ func (c *Client) Save(entries []gonx.Entry) error {
 		}
 
 		for _, entry := range entries {
-			row := buildRow(columns, c.cfg.ClickHouse.Columns, entry)
+			row := buildRow(columns, c.cfg.ClickHouse.Columns, entry, &c.cfg.Settings.Enrichments)
 			if err := batch.Append(row...); err != nil {
 				logrus.WithError(err).Error("append row")
 			}
@@ -163,11 +162,18 @@ func (c *Client) resetConn() {
 }
 
 // buildRow converts a single parsed log entry into a slice of values ordered
-// by the given column keys.
-func buildRow(keys []string, columns map[string]string, entry gonx.Entry) []any {
+// by the given column keys. Fields prefixed with "_" are resolved from
+// enrichment configuration rather than from the log entry.
+func buildRow(keys []string, columns map[string]string, entry nginx.LogEntry, enrichments *config.EnrichmentConfig) []any {
 	row := make([]any, 0, len(keys))
 	for _, col := range keys {
 		field := columns[col]
+
+		if strings.HasPrefix(field, "_") {
+			row = append(row, resolveEnrichment(field, entry, enrichments))
+			continue
+		}
+
 		value, err := entry.Field(field)
 		if err != nil {
 			logrus.WithField("field", field).WithError(err).Error("read field")
@@ -177,4 +183,40 @@ func buildRow(keys []string, columns map[string]string, entry gonx.Entry) []any 
 		row = append(row, nginx.ParseField(field, value))
 	}
 	return row
+}
+
+// resolveEnrichment returns the value for a special "_" prefixed field name.
+// Supported fields:
+//   - _hostname: from EnrichmentConfig.Hostname
+//   - _environment: from EnrichmentConfig.Environment
+//   - _service: from EnrichmentConfig.Service
+//   - _status_class: derived from the entry's "status" field (e.g. "200" -> "2xx")
+//   - _extra.<key>: from EnrichmentConfig.Extra map
+func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentConfig) any {
+	switch field {
+	case "_hostname":
+		return e.Hostname
+	case "_environment":
+		return e.Environment
+	case "_service":
+		return e.Service
+	case "_status_class":
+		status, err := entry.Field("status")
+		if err != nil || len(status) == 0 {
+			return ""
+		}
+		if status[0] < '1' || status[0] > '5' {
+			return ""
+		}
+		return string(status[0]) + "xx"
+	default:
+		if strings.HasPrefix(field, "_extra.") {
+			key := strings.TrimPrefix(field, "_extra.")
+			if e.Extra != nil {
+				return e.Extra[key]
+			}
+			return ""
+		}
+		return ""
+	}
 }

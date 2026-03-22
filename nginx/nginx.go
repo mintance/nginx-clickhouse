@@ -51,6 +51,7 @@ func ParseField(key, value string) any {
 		val, err := strconv.Atoi(value)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{"field": key, "value": value}).WithError(err).Error("cannot convert to int")
+			return value
 		}
 		return val
 
@@ -59,6 +60,7 @@ func ParseField(key, value string) any {
 		val, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{"field": key, "value": value}).WithError(err).Error("cannot convert to float")
+			return value
 		}
 		return val
 
@@ -67,9 +69,15 @@ func ParseField(key, value string) any {
 	}
 }
 
+// LogEntry represents a parsed log line with named fields.
+type LogEntry interface {
+	// Field returns the value of the named field.
+	Field(name string) (string, error)
+}
+
 // ParseLogs parses multiple raw NGINX log lines into structured entries using
 // the provided parser. Lines that fail to parse are logged and skipped.
-func ParseLogs(parser *Parser, logLines []string) []gonx.Entry {
+func ParseLogs(parser *Parser, logLines []string) []LogEntry {
 	if len(logLines) == 0 {
 		return nil
 	}
@@ -77,7 +85,7 @@ func ParseLogs(parser *Parser, logLines []string) []gonx.Entry {
 	logReader := strings.NewReader(strings.Join(logLines, "\n"))
 	reader := gonx.NewParserReader(logReader, parser)
 
-	var entries []gonx.Entry
+	var entries []LogEntry
 	for {
 		rec, err := reader.Read()
 		if errors.Is(err, io.EOF) {
@@ -87,7 +95,7 @@ func ParseLogs(parser *Parser, logLines []string) []gonx.Entry {
 			logrus.Errorf("failed to parse log line: %v", err)
 			continue
 		}
-		entries = append(entries, *rec)
+		entries = append(entries, rec)
 	}
 
 	return entries

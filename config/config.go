@@ -40,6 +40,7 @@ type SettingsConfig struct {
 	Retry          RetryConfig          `yaml:"retry"`
 	Buffer         BufferConfig         `yaml:"buffer"`
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
+	Enrichments    EnrichmentConfig     `yaml:"enrichments"`
 }
 
 // BufferConfig holds buffering settings.
@@ -47,6 +48,16 @@ type BufferConfig struct {
 	Type         string `yaml:"type"`           // "memory" (default) or "disk"
 	DiskPath     string `yaml:"disk_path"`      // directory for disk buffer segments
 	MaxDiskBytes int64  `yaml:"max_disk_bytes"` // max disk usage in bytes
+}
+
+// EnrichmentConfig holds static fields added to every log entry.
+// Fields are resolved at startup and injected into each ClickHouse row
+// when a column maps to a special "_" prefixed source name (e.g. _hostname).
+type EnrichmentConfig struct {
+	Hostname    string            `yaml:"hostname"`    // "auto" = os.Hostname(), or literal value
+	Environment string            `yaml:"environment"` // e.g. "production", "staging"
+	Service     string            `yaml:"service"`     // service name tag
+	Extra       map[string]string `yaml:"extra"`       // arbitrary key-value pairs
 }
 
 // CircuitBreakerConfig holds circuit breaker settings.
@@ -74,8 +85,9 @@ type CredentialsConfig struct {
 
 // NginxConfig holds NGINX log format settings.
 type NginxConfig struct {
-	LogType   string `yaml:"log_type"`
-	LogFormat string `yaml:"log_format"`
+	LogType       string `yaml:"log_type"`
+	LogFormat     string `yaml:"log_format"`
+	LogFormatType string `yaml:"log_format_type"` // "text" (default) or "json"
 }
 
 var configPath string
@@ -183,6 +195,9 @@ func (c *Config) SetEnvVariables() {
 	if v := os.Getenv("NGINX_LOG_FORMAT"); v != "" {
 		c.Nginx.LogFormat = v
 	}
+	if v := os.Getenv("NGINX_LOG_FORMAT_TYPE"); v != "" {
+		c.Nginx.LogFormatType = v
+	}
 
 	if v := os.Getenv("BUFFER_TYPE"); v != "" {
 		c.Settings.Buffer.Type = v
@@ -217,5 +232,15 @@ func (c *Config) SetEnvVariables() {
 		} else {
 			c.Settings.CircuitBreaker.CooldownSecs = cooldown
 		}
+	}
+
+	if v := os.Getenv("ENRICHMENT_HOSTNAME"); v != "" {
+		c.Settings.Enrichments.Hostname = v
+	}
+	if v := os.Getenv("ENRICHMENT_ENVIRONMENT"); v != "" {
+		c.Settings.Enrichments.Environment = v
+	}
+	if v := os.Getenv("ENRICHMENT_SERVICE"); v != "" {
+		c.Settings.Enrichments.Service = v
 	}
 }

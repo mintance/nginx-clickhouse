@@ -265,3 +265,291 @@ func TestIntegrationConnectionReuse(t *testing.T) {
 		t.Error("expected Healthy to remain true after second Save")
 	}
 }
+
+// setupTestDBEnriched creates the test_nginx database and an enriched table
+// that includes extra columns for enrichment fields.
+func setupTestDBEnriched(t *testing.T) {
+	t.Helper()
+
+	c, err := clickhouse.Open(testConnOpts(""))
+	if err != nil {
+		t.Fatalf("connect to clickhouse: %v", err)
+	}
+	defer c.Close()
+
+	ctx := context.Background()
+
+	if err := c.Exec(ctx, "CREATE DATABASE IF NOT EXISTS test_nginx"); err != nil {
+		t.Fatalf("create database: %v", err)
+	}
+
+	if err := c.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS test_nginx.access_log_enriched (
+			RemoteAddr    String,
+			Status        Int32,
+			BytesSent     Int64,
+			RequestTime   Float64,
+			HttpReferer   String,
+			HttpUserAgent String,
+			Hostname      String,
+			Environment   String,
+			Service       String,
+			StatusClass   String
+		) ENGINE = MergeTree()
+		ORDER BY Hostname
+	`); err != nil {
+		t.Fatalf("create enriched table: %v", err)
+	}
+
+	if err := c.Exec(ctx, "TRUNCATE TABLE test_nginx.access_log_enriched"); err != nil {
+		t.Fatalf("truncate enriched table: %v", err)
+	}
+}
+
+// testEnrichedConfig returns a config that maps columns to the enriched table,
+// including enrichment fields prefixed with "_".
+func testEnrichedConfig() *config.Config {
+	cfg := &config.Config{}
+	cfg.ClickHouse.Host = envOrDefault("CLICKHOUSE_HOST", "localhost")
+	cfg.ClickHouse.Port = envOrDefault("CLICKHOUSE_PORT", "9000")
+	cfg.ClickHouse.DB = "test_nginx"
+	cfg.ClickHouse.Table = "access_log_enriched"
+	cfg.ClickHouse.Credentials.User = envOrDefault("CLICKHOUSE_USER", "default")
+	cfg.ClickHouse.Credentials.Password = envOrDefault("CLICKHOUSE_PASSWORD", "")
+	cfg.ClickHouse.Columns = map[string]string{
+		"RemoteAddr":    "remote_addr",
+		"Status":        "status",
+		"BytesSent":     "bytes_sent",
+		"RequestTime":   "request_time",
+		"HttpReferer":   "http_referer",
+		"HttpUserAgent": "http_user_agent",
+		"Hostname":      "_hostname",
+		"Environment":   "_environment",
+		"Service":       "_service",
+		"StatusClass":   "_status_class",
+	}
+	cfg.Settings.Enrichments.Hostname = "test-host"
+	cfg.Settings.Enrichments.Environment = "testing"
+	cfg.Settings.Enrichments.Service = "nginx-test"
+
+	return cfg
+}
+
+func TestIntegrationJSONLogs(t *testing.T) {
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	cfg := testConfig()
+	client := NewClient(cfg)
+	defer client.Close()
+
+	logLines := []string{
+		`{"remote_addr":"192.168.1.1","remote_user":"frank","time_local":"10/Oct/2000:13:55:36 -0700","request":"GET /index.html HTTP/1.0","status":200,"bytes_sent":2326,"http_referer":"https://example.com","http_user_agent":"Mozilla/5.0"}`,
+		`{"remote_addr":"10.0.0.1","remote_user":"-","time_local":"10/Oct/2000:13:55:37 -0700","request":"POST /form HTTP/1.1","status":404,"bytes_sent":512,"http_referer":"-","http_user_agent":"curl/7.68.0"}`,
+	}
+
+	entries := nginx.ParseJSONLogs(logLines)
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 parsed entries, got %d", len(entries))
+	}
+
+	if err := client.Save(entries); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	c, err := clickhouse.Open(testConnOpts("test_nginx"))
+	if err != nil {
+		t.Fatalf("open connection: %v", err)
+	}
+	defer c.Close()
+
+	var count uint64
+	if err := c.QueryRow(context.Background(), "SELECT count() FROM test_nginx.access_log").Scan(&count); err != nil {
+		t.Fatalf("query count: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 rows, got %d", count)
+	}
+
+	var remoteAddr string
+	var status int32
+	if err := c.QueryRow(context.Background(),
+		"SELECT RemoteAddr, Status FROM test_nginx.access_log WHERE Status = 200").Scan(&remoteAddr, &status); err != nil {
+		t.Fatalf("query row with status 200: %v", err)
+	}
+	if remoteAddr != "192.168.1.1" {
+		t.Errorf("expected RemoteAddr=192.168.1.1, got %s", remoteAddr)
+	}
+
+	if err := c.QueryRow(context.Background(),
+		"SELECT RemoteAddr, Status FROM test_nginx.access_log WHERE Status = 404").Scan(&remoteAddr, &status); err != nil {
+		t.Fatalf("query row with status 404: %v", err)
+	}
+	if remoteAddr != "10.0.0.1" {
+		t.Errorf("expected RemoteAddr=10.0.0.1, got %s", remoteAddr)
+	}
+}
+
+func TestIntegrationEnrichments(t *testing.T) {
+	setupTestDBEnriched(t)
+	defer teardownTestDB(t)
+
+	cfg := testEnrichedConfig()
+	client := NewClient(cfg)
+	defer client.Close()
+
+	logLines := []string{
+		`{"remote_addr":"192.168.1.1","status":200,"bytes_sent":2326,"request_time":0.123,"http_referer":"https://example.com","http_user_agent":"Mozilla/5.0"}`,
+		`{"remote_addr":"10.0.0.1","status":500,"bytes_sent":512,"request_time":1.456,"http_referer":"-","http_user_agent":"curl/7.68.0"}`,
+	}
+
+	entries := nginx.ParseJSONLogs(logLines)
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 parsed entries, got %d", len(entries))
+	}
+
+	if err := client.Save(entries); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	c, err := clickhouse.Open(testConnOpts("test_nginx"))
+	if err != nil {
+		t.Fatalf("open connection: %v", err)
+	}
+	defer c.Close()
+
+	var count uint64
+	if err := c.QueryRow(context.Background(), "SELECT count() FROM test_nginx.access_log_enriched").Scan(&count); err != nil {
+		t.Fatalf("query count: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 rows, got %d", count)
+	}
+
+	// Verify enrichment values for the row with status 200.
+	var hostname, environment, service, statusClass string
+	if err := c.QueryRow(context.Background(),
+		"SELECT Hostname, Environment, Service, StatusClass FROM test_nginx.access_log_enriched WHERE Status = 200",
+	).Scan(&hostname, &environment, &service, &statusClass); err != nil {
+		t.Fatalf("query enrichment row (status 200): %v", err)
+	}
+	if hostname != "test-host" {
+		t.Errorf("expected Hostname=test-host, got %s", hostname)
+	}
+	if environment != "testing" {
+		t.Errorf("expected Environment=testing, got %s", environment)
+	}
+	if service != "nginx-test" {
+		t.Errorf("expected Service=nginx-test, got %s", service)
+	}
+	if statusClass != "2xx" {
+		t.Errorf("expected StatusClass=2xx, got %s", statusClass)
+	}
+
+	// Verify enrichment values for the row with status 500.
+	if err := c.QueryRow(context.Background(),
+		"SELECT Hostname, Environment, Service, StatusClass FROM test_nginx.access_log_enriched WHERE Status = 500",
+	).Scan(&hostname, &environment, &service, &statusClass); err != nil {
+		t.Fatalf("query enrichment row (status 500): %v", err)
+	}
+	if hostname != "test-host" {
+		t.Errorf("expected Hostname=test-host, got %s", hostname)
+	}
+	if environment != "testing" {
+		t.Errorf("expected Environment=testing, got %s", environment)
+	}
+	if service != "nginx-test" {
+		t.Errorf("expected Service=nginx-test, got %s", service)
+	}
+	if statusClass != "5xx" {
+		t.Errorf("expected StatusClass=5xx, got %s", statusClass)
+	}
+}
+
+func TestIntegrationJSONLogsWithEnrichments(t *testing.T) {
+	setupTestDBEnriched(t)
+	defer teardownTestDB(t)
+
+	cfg := testEnrichedConfig()
+	client := NewClient(cfg)
+	defer client.Close()
+
+	logLines := []string{
+		`{"remote_addr":"172.16.0.1","status":201,"bytes_sent":1024,"request_time":0.05,"http_referer":"https://app.example.com","http_user_agent":"Firefox/99.0"}`,
+		`{"remote_addr":"10.10.10.10","status":503,"bytes_sent":256,"request_time":5.0,"http_referer":"-","http_user_agent":"Python/3.11"}`,
+	}
+
+	entries := nginx.ParseJSONLogs(logLines)
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 parsed entries, got %d", len(entries))
+	}
+
+	if err := client.Save(entries); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	c, err := clickhouse.Open(testConnOpts("test_nginx"))
+	if err != nil {
+		t.Fatalf("open connection: %v", err)
+	}
+	defer c.Close()
+
+	// Verify all fields for the row with status 201.
+	var (
+		remoteAddr, httpReferer, httpUserAgent string
+		hostname, environment, service         string
+		statusClass                            string
+		status                                 int32
+		bytesSent                              int64
+		requestTime                            float64
+	)
+	if err := c.QueryRow(context.Background(),
+		`SELECT RemoteAddr, Status, BytesSent, RequestTime, HttpReferer, HttpUserAgent,
+		        Hostname, Environment, Service, StatusClass
+		 FROM test_nginx.access_log_enriched WHERE Status = 201`,
+	).Scan(&remoteAddr, &status, &bytesSent, &requestTime, &httpReferer, &httpUserAgent,
+		&hostname, &environment, &service, &statusClass); err != nil {
+		t.Fatalf("query combined row (status 201): %v", err)
+	}
+
+	if remoteAddr != "172.16.0.1" {
+		t.Errorf("expected RemoteAddr=172.16.0.1, got %s", remoteAddr)
+	}
+	if status != 201 {
+		t.Errorf("expected Status=201, got %d", status)
+	}
+	if bytesSent != 1024 {
+		t.Errorf("expected BytesSent=1024, got %d", bytesSent)
+	}
+	if httpReferer != "https://app.example.com" {
+		t.Errorf("expected HttpReferer=https://app.example.com, got %s", httpReferer)
+	}
+	if httpUserAgent != "Firefox/99.0" {
+		t.Errorf("expected HttpUserAgent=Firefox/99.0, got %s", httpUserAgent)
+	}
+	if hostname != "test-host" {
+		t.Errorf("expected Hostname=test-host, got %s", hostname)
+	}
+	if environment != "testing" {
+		t.Errorf("expected Environment=testing, got %s", environment)
+	}
+	if service != "nginx-test" {
+		t.Errorf("expected Service=nginx-test, got %s", service)
+	}
+	if statusClass != "2xx" {
+		t.Errorf("expected StatusClass=2xx, got %s", statusClass)
+	}
+
+	// Verify enrichment fields for the row with status 503.
+	if err := c.QueryRow(context.Background(),
+		`SELECT RemoteAddr, StatusClass FROM test_nginx.access_log_enriched WHERE Status = 503`,
+	).Scan(&remoteAddr, &statusClass); err != nil {
+		t.Fatalf("query combined row (status 503): %v", err)
+	}
+	if remoteAddr != "10.10.10.10" {
+		t.Errorf("expected RemoteAddr=10.10.10.10, got %s", remoteAddr)
+	}
+	if statusClass != "5xx" {
+		t.Errorf("expected StatusClass=5xx, got %s", statusClass)
+	}
+}

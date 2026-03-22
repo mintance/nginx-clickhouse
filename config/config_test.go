@@ -360,6 +360,114 @@ func TestSetEnvVariablesCircuitBreaker(t *testing.T) {
 	}
 }
 
+func TestReadLogFormatType(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+nginx:
+  log_type: main
+  log_format: ""
+  log_format_type: json
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if cfg.Nginx.LogFormatType != "json" {
+		t.Errorf("expected LogFormatType=json, got %s", cfg.Nginx.LogFormatType)
+	}
+}
+
+func TestSetEnvVariablesLogFormatType(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("NGINX_LOG_FORMAT_TYPE", "json")
+
+	cfg.SetEnvVariables()
+
+	if cfg.Nginx.LogFormatType != "json" {
+		t.Errorf("expected LogFormatType=json, got %s", cfg.Nginx.LogFormatType)
+	}
+}
+
+func TestReadEnrichmentConfig(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+  enrichments:
+    hostname: auto
+    environment: production
+    service: my-api
+    extra:
+      datacenter: us-east-1
+      cluster: web-prod
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+nginx:
+  log_type: main
+  log_format: "$remote_addr"
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if cfg.Settings.Enrichments.Hostname != "auto" {
+		t.Errorf("expected Hostname=auto, got %s", cfg.Settings.Enrichments.Hostname)
+	}
+	if cfg.Settings.Enrichments.Environment != "production" {
+		t.Errorf("expected Environment=production, got %s", cfg.Settings.Enrichments.Environment)
+	}
+	if cfg.Settings.Enrichments.Service != "my-api" {
+		t.Errorf("expected Service=my-api, got %s", cfg.Settings.Enrichments.Service)
+	}
+	if cfg.Settings.Enrichments.Extra["datacenter"] != "us-east-1" {
+		t.Errorf("expected Extra[datacenter]=us-east-1, got %s", cfg.Settings.Enrichments.Extra["datacenter"])
+	}
+	if cfg.Settings.Enrichments.Extra["cluster"] != "web-prod" {
+		t.Errorf("expected Extra[cluster]=web-prod, got %s", cfg.Settings.Enrichments.Extra["cluster"])
+	}
+}
+
+func TestSetEnvVariablesEnrichments(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("ENRICHMENT_HOSTNAME", "override-host")
+	t.Setenv("ENRICHMENT_ENVIRONMENT", "staging")
+	t.Setenv("ENRICHMENT_SERVICE", "override-svc")
+
+	cfg.SetEnvVariables()
+
+	if cfg.Settings.Enrichments.Hostname != "override-host" {
+		t.Errorf("expected Hostname=override-host, got %s", cfg.Settings.Enrichments.Hostname)
+	}
+	if cfg.Settings.Enrichments.Environment != "staging" {
+		t.Errorf("expected Environment=staging, got %s", cfg.Settings.Enrichments.Environment)
+	}
+	if cfg.Settings.Enrichments.Service != "override-svc" {
+		t.Errorf("expected Service=override-svc, got %s", cfg.Settings.Enrichments.Service)
+	}
+}
+
 func TestSetEnvVariablesInvalidInterval(t *testing.T) {
 	cfg := &Config{}
 	cfg.Settings.Interval = 5
