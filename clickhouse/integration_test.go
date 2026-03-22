@@ -497,11 +497,11 @@ func TestIntegrationJSONLogsWithEnrichments(t *testing.T) {
 	// Verify all fields for the row with status 201.
 	var (
 		remoteAddr, httpReferer, httpUserAgent string
-		hostname, environment, service        string
-		statusClass                           string
-		status                                int32
-		bytesSent                             int64
-		requestTime                           float64
+		hostname, environment, service         string
+		statusClass                            string
+		status                                 int32
+		bytesSent                              int64
+		requestTime                            float64
 	)
 	if err := c.QueryRow(context.Background(),
 		`SELECT RemoteAddr, Status, BytesSent, RequestTime, HttpReferer, HttpUserAgent,
