@@ -2,7 +2,6 @@ package retry
 
 import (
 	"errors"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -68,10 +67,10 @@ func TestDoSuccess(t *testing.T) {
 }
 
 func TestDoRetryThenSuccess(t *testing.T) {
-	var calls atomic.Int32
+	var calls int
 	err := Do(5, time.Millisecond, 5*time.Millisecond, func() error {
-		n := calls.Add(1)
-		if n <= 2 {
+		calls++
+		if calls <= 2 {
 			return errors.New("transient")
 		}
 		return nil
@@ -79,25 +78,25 @@ func TestDoRetryThenSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if c := calls.Load(); c != 3 {
-		t.Fatalf("expected 3 calls, got %d", c)
+	if calls != 3 {
+		t.Fatalf("expected 3 calls, got %d", calls)
 	}
 }
 
 func TestDoAllFail(t *testing.T) {
 	const maxRetries = 3
-	var calls atomic.Int32
+	var calls int
 	sentinel := errors.New("permanent")
 
 	err := Do(maxRetries, time.Millisecond, 5*time.Millisecond, func() error {
-		calls.Add(1)
+		calls++
 		return sentinel
 	})
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("expected sentinel error, got %v", err)
 	}
-	if c := calls.Load(); c != maxRetries+1 {
-		t.Fatalf("expected %d calls, got %d", maxRetries+1, c)
+	if calls != maxRetries+1 {
+		t.Fatalf("expected %d calls, got %d", maxRetries+1, calls)
 	}
 }
 

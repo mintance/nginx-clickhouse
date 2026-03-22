@@ -7,8 +7,9 @@ import (
 )
 
 // Backoff returns a jittered duration for the given attempt using exponential
-// backoff with full jitter. The result is a random value in [0, min(initial*2^attempt, maxDelay)).
-// If attempt is negative it is treated as 0. If the computed value is 0, initial is returned.
+// backoff with full jitter. The result is a random value in
+// [initial, min(initial*2^attempt, maxDelay)].
+// If attempt is negative it is treated as 0.
 func Backoff(attempt int, initial, maxDelay time.Duration) time.Duration {
 	if attempt < 0 {
 		attempt = 0
@@ -17,7 +18,7 @@ func Backoff(attempt int, initial, maxDelay time.Duration) time.Duration {
 	delay := initial
 	for range attempt {
 		delay *= 2
-		if delay >= maxDelay {
+		if delay <= 0 || delay >= maxDelay {
 			delay = maxDelay
 			break
 		}
@@ -28,7 +29,7 @@ func Backoff(attempt int, initial, maxDelay time.Duration) time.Duration {
 	}
 
 	jittered := rand.N(delay)
-	if jittered == 0 {
+	if jittered < initial {
 		return initial
 	}
 	return jittered
