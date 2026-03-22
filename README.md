@@ -16,6 +16,8 @@ Simple NGINX access log parser and transporter to ClickHouse database. Uses the 
 
 - Tails NGINX access logs in real-time
 - Configurable log format parsing via [gonx](https://github.com/satyrius/gonx)
+- **JSON access log support** (`log_format escape=json`) alongside traditional text format
+- **Log enrichment**: auto-hostname, environment, service tags, status class derivation
 - Batch inserts into ClickHouse using the [official Go client](https://github.com/ClickHouse/clickhouse-go) (native TCP, LZ4 compression)
 - **Retry with exponential backoff** and full jitter on ClickHouse failures
 - **Automatic connection recovery** — reconnects transparently after outages
@@ -96,6 +98,10 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `CLICKHOUSE_PASSWORD` | ClickHouse password |
 | `NGINX_LOG_TYPE` | NGINX log format name |
 | `NGINX_LOG_FORMAT` | NGINX log format string |
+| `NGINX_LOG_FORMAT_TYPE` | Log format type: `text` (default) or `json` |
+| `ENRICHMENT_HOSTNAME` | Hostname to add to logs (`auto` for os.Hostname) |
+| `ENRICHMENT_ENVIRONMENT` | Environment tag (e.g., `production`) |
+| `ENRICHMENT_SERVICE` | Service name tag |
 
 ### Full Config Example
 
@@ -140,6 +146,7 @@ clickhouse:
 
 nginx:
   log_type: main
+  log_format_type: text        # "text" (default) or "json"
   log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"'
 ```
 
@@ -164,6 +171,38 @@ server {
     access_log /var/log/nginx/my-site-access.log main;
 }
 ```
+
+## JSON Access Logs
+
+nginx-clickhouse supports NGINX's native JSON log format (`escape=json`) as an alternative to the traditional text format. JSON logs are more robust — no custom regex parsing, no escaping edge cases.
+
+### 1. Configure NGINX JSON Log Format
+
+In `/etc/nginx/nginx.conf`:
+
+```nginx
+log_format json_combined escape=json
+'{'
+  '"remote_addr":"$remote_addr",'
+  '"request_method":"$request_method",'
+  '"request_uri":"$request_uri",'
+  '"status":$status,'
+  '"body_bytes_sent":$body_bytes_sent,'
+  '"request_time":$request_time,'
+  '"http_referer":"$http_referer",'
+  '"http_user_agent":"$http_user_agent",'
+  '"time_local":"$time_local"'
+'}';
+```
+
+### 2. Set Log Format Type in Config
+
+```yaml
+nginx:
+  log_format_type: json
+```
+
+With JSON format, the `log_type` and `log_format` fields are not needed. The JSON keys in the log are mapped directly via the `columns` config.
 
 ## ClickHouse Setup
 
@@ -264,6 +303,37 @@ States:
 - **Half-open**: after cooldown, one probe flush is attempted. Success closes the circuit; failure re-opens it.
 
 Monitor via `nginx_clickhouse_circuit_breaker_state` (0=closed, 1=open, 2=half-open) and `nginx_clickhouse_circuit_breaker_rejections_total`.
+
+## Enrichments
+
+Enrichments let you automatically inject additional fields into every log entry — hostname, environment, service name, and derived status class — without any changes to the NGINX log format.
+
+Configure enrichments in the `settings` block:
+
+```yaml
+settings:
+  enrichments:
+    hostname: auto
+    environment: production
+    service: my-api
+
+clickhouse:
+  columns:
+    Hostname: _hostname
+    Environment: _environment
+    Service: _service
+    StatusClass: _status_class
+```
+
+Map enrichment fields to ClickHouse columns using the `_` prefix in the column mapping. Available enrichment fields:
+
+| Field | Description |
+|---|---|
+| `_hostname` | Hostname of the machine running nginx-clickhouse (`auto` resolves via `os.Hostname()`, or set a literal value) |
+| `_environment` | Environment tag (e.g., `production`, `staging`) |
+| `_service` | Service name tag |
+| `_status_class` | HTTP status class derived from the `status` field (e.g., `2xx`, `4xx`, `5xx`) |
+| `_extra.<key>` | Arbitrary key-value pairs from the `enrichments.extra` map |
 
 ### Health Check
 

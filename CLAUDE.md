@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-nginx-clickhouse is a Go microservice that tails NGINX access logs and batch-inserts parsed entries into ClickHouse using the native TCP protocol. It features retry with exponential backoff, optional disk buffering for crash recovery, circuit breaker, structured JSON logging, and Prometheus metrics.
+nginx-clickhouse is a Go microservice that tails NGINX access logs and batch-inserts parsed entries into ClickHouse using the native TCP protocol. It supports both traditional text log formats and JSON access logs (`log_format escape=json`), and provides log enrichment (auto-hostname, environment, service tags, status class derivation). It features retry with exponential backoff, optional disk buffering for crash recovery, circuit breaker, structured JSON logging, and Prometheus metrics.
 
 ## Architecture
 
@@ -10,6 +10,7 @@ nginx-clickhouse is a Go microservice that tails NGINX access logs and batch-ins
 main.go                    → Entry point: tail, buffer, flush loop, graceful shutdown, /healthz
 config/config.go           → YAML config + env var overrides (structured types)
 nginx/nginx.go             → Parses NGINX log lines using gonx (configurable log format)
+nginx/json.go              → Parses NGINX JSON access logs (log_format escape=json) and applies enrichments
 clickhouse/clickhouse.go   → Client struct: connection mgmt, retry-wrapped Save, health check
 retry/retry.go             → Exponential backoff with full jitter
 buffer/buffer.go           → Buffer interface + MemoryBuffer
