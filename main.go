@@ -80,6 +80,16 @@ func main() {
 	cfg := configParser.Read()
 	cfg.SetEnvVariables()
 
+	// Resolve "auto" hostname enrichment.
+	if cfg.Settings.Enrichments.Hostname == "auto" {
+		h, err := os.Hostname()
+		if err != nil {
+			logrus.WithError(err).Warn("failed to resolve hostname for enrichment")
+		} else {
+			cfg.Settings.Enrichments.Hostname = h
+		}
+	}
+
 	if cfg.Settings.MaxBufferSize == 0 {
 		cfg.Settings.MaxBufferSize = defaultMaxBufferSize
 	}

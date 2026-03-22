@@ -12,6 +12,13 @@ settings:
     enabled: false            # enable circuit breaker
     threshold: 5              # consecutive failures before opening
     cooldown_secs: 60         # seconds before half-open probe
+  enrichments:
+    hostname: auto           # "auto" resolves to os.Hostname(), or a literal value
+    environment: production
+    service: my-api
+    # extra:                 # arbitrary key-value pairs
+    #   datacenter: us-east-1
+    #   cluster: web-prod
 # ClickHouse credentials
 clickhouse:
  db: metrics
