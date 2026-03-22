@@ -324,6 +324,33 @@ func TestIntegrationCheckBadDB(t *testing.T) {
 	}
 }
 
+func TestIntegrationCheckWithEnrichments(t *testing.T) {
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	cfg := testConfig()
+	// Add enrichment columns that don't exist in the table
+	cfg.ClickHouse.Columns["Hostname"] = "_hostname"
+	cfg.ClickHouse.Columns["StatusClass"] = "_status_class"
+
+	client := NewClient(cfg)
+	defer client.Close()
+
+	results := client.Check()
+
+	for _, r := range results {
+		if !r.OK {
+			t.Errorf("check %q failed: %s", r.Name, r.Message)
+		}
+	}
+
+	// Columns check should pass — enrichment columns are skipped
+	colResult := results[len(results)-1]
+	if !colResult.OK {
+		t.Errorf("expected columns check to pass with enrichment columns, got: %s", colResult.Message)
+	}
+}
+
 // setupTestDBEnriched creates the test_nginx database and an enriched table
 // that includes extra columns for enrichment fields.
 func setupTestDBEnriched(t *testing.T) {

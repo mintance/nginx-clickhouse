@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 )
 
 // CheckResult holds the result of a single validation check.
@@ -126,12 +127,20 @@ func (c *Client) Check() []CheckResult {
 	slices.Sort(configColumns)
 
 	var missing []string
+	var enrichmentCount int
 	for _, col := range configColumns {
+		// Skip enrichment columns (source starts with "_") — they are
+		// resolved at runtime and do not need to exist in the table.
+		if strings.HasPrefix(c.cfg.ClickHouse.Columns[col], "_") {
+			enrichmentCount++
+			continue
+		}
 		if !tableColumns[col] {
 			missing = append(missing, col)
 		}
 	}
 
+	tableColumnCount := len(configColumns) - enrichmentCount
 	if len(missing) > 0 {
 		results = append(results, CheckResult{
 			Name:    "Columns",
@@ -139,10 +148,15 @@ func (c *Client) Check() []CheckResult {
 			Message: fmt.Sprintf("FAIL: columns not found in table: %v", missing),
 		})
 	} else {
+		msg := fmt.Sprintf("OK (%d/%d columns match", tableColumnCount, tableColumnCount)
+		if enrichmentCount > 0 {
+			msg += fmt.Sprintf(", %d enrichment", enrichmentCount)
+		}
+		msg += ")"
 		results = append(results, CheckResult{
 			Name:    "Columns",
 			OK:      true,
-			Message: fmt.Sprintf("OK (%d/%d columns match)", len(configColumns), len(configColumns)),
+			Message: msg,
 		})
 	}
 
