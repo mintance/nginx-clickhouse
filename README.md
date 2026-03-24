@@ -473,10 +473,10 @@ Template variables: `database` (default: `metrics`), `table` (default: `nginx`).
 
 ## Config Validation
 
-Run `--check` to validate your configuration without starting the service:
+Run `-check` to validate your configuration without starting the service:
 
 ```sh
-./nginx-clickhouse -config_path=config/config.yml --check
+./nginx-clickhouse -config_path=config/config.yml -check
 ```
 
 Output:
