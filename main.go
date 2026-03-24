@@ -433,6 +433,11 @@ func runCheck(cfg *configParser.Config, parser *nginx.Parser, client *clickhouse
 
 	client.Close()
 
+	// Config warnings (non-fatal).
+	if cfg.ClickHouse.UseServerSideBatching && cfg.Settings.Buffer.Type == "disk" {
+		fmt.Println("⚠ disk buffer is redundant with server-side batching")
+	}
+
 	if allOK {
 		fmt.Println("\nAll checks passed.")
 	} else {
