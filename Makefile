@@ -15,3 +15,4 @@ test:
 
 test-integration:
 	go test ./clickhouse/ -v -race -tags integration
+	go test . -v -race -tags integration -timeout 120s
