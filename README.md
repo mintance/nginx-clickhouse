@@ -219,26 +219,7 @@ With JSON format, the `log_type` and `log_format` fields are not needed. The JSO
 
 ## ClickHouse Setup
 
-Create a table matching your column mapping:
-
-```sql
-CREATE TABLE metrics.nginx (
-    RemoteAddr    String,
-    RemoteUser    String,
-    TimeLocal     DateTime,
-    Date          Date DEFAULT toDate(TimeLocal),
-    Request       String,
-    Status        Int32,
-    BytesSent     Int64,
-    HttpReferer   String,
-    HttpUserAgent String
-) ENGINE = MergeTree()
-ORDER BY (Status, TimeLocal)
-```
-
-### Production-Recommended Schema
-
-For production deployments, apply compression codecs, partitioning, and a TTL retention policy. This can reduce storage by 5-10x compared to the basic schema above.
+Create a table matching your column mapping. This schema uses compression codecs, monthly partitioning, and a 180-day TTL retention policy.
 
 ```sql
 CREATE TABLE metrics.nginx (
@@ -273,22 +254,7 @@ SETTINGS ttl_only_drop_parts = 1;
 | `Hostname`, `Environment`, `Service`, `StatusClass` | `LowCardinality(String)` | Few distinct values — dictionary encoding replaces strings with small integer references |
 | `Request`, `HttpReferer`, `HttpUserAgent` | `ZSTD(1)` | High-cardinality strings; general-purpose compression works best |
 
-**Partitioning and TTL:** Monthly partitions (`toYYYYMM`) align well with the 180-day retention. `ttl_only_drop_parts = 1` ensures ClickHouse drops whole parts efficiently rather than performing row-level deletions.
-
-**Migration from the basic schema:**
-
-```sql
-ALTER TABLE metrics.nginx MODIFY COLUMN TimeLocal DateTime CODEC(Delta(4), ZSTD(1));
-ALTER TABLE metrics.nginx MODIFY COLUMN RemoteAddr IPv4;
-ALTER TABLE metrics.nginx MODIFY COLUMN Status UInt16;
-ALTER TABLE metrics.nginx MODIFY COLUMN BytesSent UInt64 CODEC(Delta(4), ZSTD(1));
-ALTER TABLE metrics.nginx MODIFY COLUMN RemoteUser String CODEC(ZSTD(1));
-ALTER TABLE metrics.nginx MODIFY COLUMN Request String CODEC(ZSTD(1));
-ALTER TABLE metrics.nginx MODIFY COLUMN HttpReferer String CODEC(ZSTD(1));
-ALTER TABLE metrics.nginx MODIFY COLUMN HttpUserAgent String CODEC(ZSTD(1));
-```
-
-> **Note:** Changing `RemoteAddr` from `String` to `IPv4` requires that all values are valid IPv4 addresses. If your logs contain IPv6 addresses, use `IPv6` instead (stores both v4 and v6).
+**Partitioning and TTL:** Monthly partitions (`toYYYYMM`) align well with the 180-day retention. `ttl_only_drop_parts = 1` ensures ClickHouse drops whole parts efficiently rather than performing row-level deletions. Adjust the `INTERVAL 180 DAY` to your retention needs.
 
 ## Prometheus Metrics
 
