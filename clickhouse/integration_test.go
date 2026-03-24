@@ -161,6 +161,49 @@ func TestIntegrationSave(t *testing.T) {
 	}
 }
 
+func TestIntegrationSaveServerSideBatching(t *testing.T) {
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	cfg := testConfig()
+	cfg.ClickHouse.UseServerSideBatching = true
+	client := NewClient(cfg)
+	defer client.Close()
+
+	parser, err := nginx.NewParser(cfg)
+	if err != nil {
+		t.Fatalf("create parser: %v", err)
+	}
+
+	logLines := []string{
+		`192.168.1.1 - frank [10/Oct/2000:13:55:36 -0700] "GET /index.html HTTP/1.0" 200 2326 "https://example.com" "Mozilla/5.0"`,
+		`10.0.0.1 - - [10/Oct/2000:13:55:37 -0700] "POST /form HTTP/1.1" 301 512 "-" "curl/7.68.0"`,
+	}
+
+	entries := nginx.ParseLogs(parser, logLines)
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 parsed entries, got %d", len(entries))
+	}
+
+	if err := client.Save(entries); err != nil {
+		t.Fatalf("Save with server-side batching: %v", err)
+	}
+
+	c, err := clickhouse.Open(testConnOpts("test_nginx"))
+	if err != nil {
+		t.Fatalf("open connection: %v", err)
+	}
+	defer c.Close()
+
+	var count uint64
+	if err := c.QueryRow(context.Background(), "SELECT count() FROM test_nginx.access_log").Scan(&count); err != nil {
+		t.Fatalf("query count: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 rows, got %d", count)
+	}
+}
+
 func TestIntegrationSaveEmpty(t *testing.T) {
 	setupTestDB(t)
 	defer teardownTestDB(t)
