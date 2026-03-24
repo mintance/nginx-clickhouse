@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -221,7 +222,7 @@ func TestIntegrationCheck(t *testing.T) {
 	}
 
 	output := stdout.String()
-	if !bytes.Contains([]byte(output), []byte("All checks passed")) {
+	if !strings.Contains(output, "All checks passed") {
 		t.Errorf("expected 'All checks passed' in output, got:\n%s", output)
 	}
 }

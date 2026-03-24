@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -203,13 +204,27 @@ func main() {
 
 	go flushLoop(cfg, buf, parser, client, cb)
 
+	// Guard against concurrent shutdown from signal + EOF.
+	var shutdownOnce sync.Once
+	doShutdown := func() {
+		shutdownOnce.Do(func() {
+			flush(buf, parser, client, cb)
+			client.Close()
+			if closer, ok := buf.(io.Closer); ok {
+				closer.Close()
+			}
+			logrus.Info("shutdown complete")
+			os.Exit(0)
+		})
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
 	go func() {
 		sig := <-sigCh
 		logrus.WithField("signal", sig.String()).Info("received shutdown signal")
-		shutdown(buf, parser, client, cb)
+		doShutdown()
 	}()
 
 	for line := range lines {
@@ -228,18 +243,7 @@ func main() {
 
 	// Line source closed (EOF in -once or -stdin mode).
 	// In tail mode this is unreachable since follower never closes.
-	shutdown(buf, parser, client, cb)
-}
-
-// shutdown performs a final flush and cleans up resources before exit.
-func shutdown(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker) {
-	flush(buf, parser, client, cb)
-	client.Close()
-	if closer, ok := buf.(io.Closer); ok {
-		closer.Close()
-	}
-	logrus.Info("shutdown complete")
-	os.Exit(0)
+	doShutdown()
 }
 
 // openLineSource returns a channel of log lines based on the active input mode.
@@ -298,6 +302,7 @@ func scanLines(r io.Reader) <-chan string {
 			defer closer.Close()
 		}
 		scanner := bufio.NewScanner(r)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // max 1MB per line
 		for scanner.Scan() {
 			ch <- scanner.Text()
 		}
