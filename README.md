@@ -22,6 +22,7 @@ Simple NGINX access log parser and transporter to ClickHouse database. Uses the 
 - **Retry with exponential backoff** and full jitter on ClickHouse failures
 - **Automatic connection recovery** — reconnects transparently after outages
 - **Optional disk buffer** with segment files for crash recovery (at-least-once delivery)
+- **Server-side batching** via ClickHouse [async inserts](https://clickhouse.com/docs/en/optimize/asynchronous-inserts) (`async_insert=1, wait_for_async_insert=1`)
 - **Circuit breaker** to fast-fail when ClickHouse is persistently down
 - **Graceful shutdown** — flushes buffer on SIGTERM/SIGINT
 - `/healthz` endpoint for Kubernetes liveness/readiness probes
@@ -101,6 +102,7 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `CLICKHOUSE_CA_CERT` | Path to CA certificate file |
 | `CLICKHOUSE_TLS_CERT_PATH` | Path to client TLS certificate (for mTLS) |
 | `CLICKHOUSE_TLS_KEY_PATH` | Path to client TLS private key (for mTLS) |
+| `CLICKHOUSE_USE_SERVER_SIDE_BATCHING` | Delegate batching to ClickHouse async inserts (`true`/`false`) |
 | `NGINX_LOG_TYPE` | NGINX log format name |
 | `NGINX_LOG_FORMAT` | NGINX log format string |
 | `NGINX_LOG_FORMAT_TYPE` | Log format type: `text` (default) or `json` |
@@ -141,6 +143,7 @@ clickhouse:
   # ca_cert: /etc/ssl/clickhouse-ca.pem
   # tls_cert_path: /etc/ssl/client.crt  # client cert for mTLS
   # tls_key_path: /etc/ssl/client.key
+  # use_server_side_batching: false     # delegate batching to ClickHouse async inserts
   credentials:
     user: default
     password:
@@ -330,6 +333,19 @@ States:
 - **Half-open**: after cooldown, one probe flush is attempted. Success closes the circuit; failure re-opens it.
 
 Monitor via `nginx_clickhouse_circuit_breaker_state` (0=closed, 1=open, 2=half-open) and `nginx_clickhouse_circuit_breaker_rejections_total`.
+
+### Server-Side Batching
+
+By default, nginx-clickhouse batches log lines client-side using its internal buffer. You can optionally delegate batching to ClickHouse's [async inserts](https://clickhouse.com/docs/en/optimize/asynchronous-inserts):
+
+```yaml
+clickhouse:
+  use_server_side_batching: true
+```
+
+When enabled, each batch insert is sent with `async_insert=1` and `wait_for_async_insert=1`. ClickHouse buffers the data server-side and flushes based on its own thresholds (`async_insert_max_data_size`, `async_insert_busy_timeout_ms`). The `wait_for_async_insert=1` setting ensures the insert only returns after the server flush completes, preserving at-least-once delivery guarantees.
+
+Client-side buffering (interval-based flush, `max_buffer_size`) still applies — ClickHouse recommends batching even with async inserts for best throughput. The disk buffer is redundant when server-side batching is enabled (a warning is logged if both are active).
 
 ## Enrichments
 
