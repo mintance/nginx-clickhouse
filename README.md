@@ -223,38 +223,25 @@ Create a table matching your column mapping. This schema uses compression codecs
 
 ```sql
 CREATE TABLE metrics.nginx (
-    TimeLocal     DateTime    CODEC(Delta(4), ZSTD(1)),
+    TimeLocal     DateTime    CODEC(Delta(4), ZSTD(1)),  -- delta on sequential timestamps
     Date          Date        DEFAULT toDate(TimeLocal),
-    RemoteAddr    IPv4,
+    RemoteAddr    IPv4,                                   -- 4 bytes; use IPv6 for mixed traffic
     RemoteUser    String      CODEC(ZSTD(1)),
     Request       String      CODEC(ZSTD(1)),
     Status        UInt16,
     BytesSent     UInt64      CODEC(Delta(4), ZSTD(1)),
     HttpReferer   String      CODEC(ZSTD(1)),
     HttpUserAgent String      CODEC(ZSTD(1)),
-    Hostname      LowCardinality(String),
+    Hostname      LowCardinality(String),                 -- few distinct values
     Environment   LowCardinality(String),
     Service       LowCardinality(String),
     StatusClass   LowCardinality(String)
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(Date)
 ORDER BY (Status, TimeLocal)
-TTL TimeLocal + INTERVAL 180 DAY
-SETTINGS ttl_only_drop_parts = 1;
+TTL TimeLocal + INTERVAL 180 DAY                          -- adjust retention as needed
+SETTINGS ttl_only_drop_parts = 1;                         -- drop whole parts, not row-by-row
 ```
-
-**Codec rationale:**
-
-| Column | Codec | Why |
-|---|---|---|
-| `TimeLocal` | `Delta(4), ZSTD(1)` | Sequential timestamps have small deltas; `Delta(4)` matches DateTime's 4-byte width |
-| `BytesSent` | `Delta(4), ZSTD(1)` | Consecutive log entries often have similar response sizes |
-| `RemoteAddr` | `IPv4` (native type) | Stored as 4 bytes; avoids string overhead. Use `IPv6` for mixed traffic |
-| `Status` | `UInt16` | Already compact at 2 bytes; no codec needed |
-| `Hostname`, `Environment`, `Service`, `StatusClass` | `LowCardinality(String)` | Few distinct values — dictionary encoding replaces strings with small integer references |
-| `Request`, `HttpReferer`, `HttpUserAgent` | `ZSTD(1)` | High-cardinality strings; general-purpose compression works best |
-
-**Partitioning and TTL:** Monthly partitions (`toYYYYMM`) align well with the 180-day retention. `ttl_only_drop_parts = 1` ensures ClickHouse drops whole parts efficiently rather than performing row-level deletions. Adjust the `INTERVAL 180 DAY` to your retention needs.
 
 ## Prometheus Metrics
 
