@@ -59,9 +59,13 @@ jobs:
           go-version-file: go.mod
 
       - name: Run integration tests
-        run: |
-          go test ./clickhouse/ -v -race -tags integration
-          go test . -v -race -tags integration -timeout 120s
+        run: go test ./clickhouse/ -v -race -tags integration
+        env:
+          CLICKHOUSE_HOST: localhost
+          CLICKHOUSE_PORT: "9000"
+
+      - name: Run e2e tests
+        run: go test . -v -race -tags e2e -timeout 120s
         env:
           CLICKHOUSE_HOST: localhost
           CLICKHOUSE_PORT: "9000"

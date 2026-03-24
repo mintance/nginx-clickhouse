@@ -1,4 +1,4 @@
-.PHONY: build docker lint test test-integration
+.PHONY: build docker lint test test-integration test-e2e
 
 build:
 	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o nginx-clickhouse .
@@ -15,4 +15,6 @@ test:
 
 test-integration:
 	go test ./clickhouse/ -v -race -tags integration
-	go test . -v -race -tags integration -timeout 120s
+
+test-e2e:
+	go test . -v -race -tags e2e -timeout 120s
