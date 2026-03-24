@@ -544,6 +544,75 @@ func TestSetEnvVariablesEnrichments(t *testing.T) {
 	}
 }
 
+func TestReadServerSideBatching(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+  use_server_side_batching: true
+nginx:
+  log_type: main
+  log_format: "$remote_addr"
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if !cfg.ClickHouse.UseServerSideBatching {
+		t.Error("expected UseServerSideBatching=true")
+	}
+}
+
+func TestSetEnvVariablesServerSideBatching(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("CLICKHOUSE_USE_SERVER_SIDE_BATCHING", "true")
+
+	cfg.SetEnvVariables()
+
+	if !cfg.ClickHouse.UseServerSideBatching {
+		t.Error("expected UseServerSideBatching=true")
+	}
+}
+
+func TestServerSideBatchingDefaultFalse(t *testing.T) {
+	content := `
+settings:
+  interval: 5
+  log_path: /tmp/test.log
+clickhouse:
+  db: test
+  table: t
+  host: localhost
+  port: "9000"
+nginx:
+  log_type: main
+  log_format: "$remote_addr"
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configPath = tmpFile
+	cfg := Read()
+
+	if cfg.ClickHouse.UseServerSideBatching {
+		t.Error("expected UseServerSideBatching=false by default")
+	}
+}
+
 func TestSetEnvVariablesInvalidInterval(t *testing.T) {
 	cfg := &Config{}
 	cfg.Settings.Interval = 5

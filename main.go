@@ -111,6 +111,13 @@ func main() {
 		}
 	}
 
+	if cfg.ClickHouse.UseServerSideBatching {
+		logrus.Info("server-side batching enabled (async_insert=1, wait_for_async_insert=1)")
+		if cfg.Settings.Buffer.Type == "disk" {
+			logrus.Warn("disk buffer is redundant with server-side batching; ClickHouse handles durability via async inserts")
+		}
+	}
+
 	client := clickhouse.NewClient(cfg)
 
 	if checkMode {

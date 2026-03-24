@@ -77,7 +77,19 @@ func (c *Client) Save(entries []nginx.LogEntry) error {
 		}
 		query := fmt.Sprintf("INSERT INTO %s (%s)", table, strings.Join(quoted, ", "))
 
-		batch, err := c.conn.PrepareBatch(context.Background(), query)
+		ctx := context.Background()
+		if c.cfg.ClickHouse.UseServerSideBatching {
+			// Enable ClickHouse async inserts with wait=true so the server
+			// confirms the data has been flushed to disk before returning,
+			// preserving at-least-once delivery guarantees.
+			ctx = clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{
+				"async_insert":                 1,
+				"wait_for_async_insert":        1,
+				"async_insert_busy_timeout_ms": 200,
+			}))
+		}
+
+		batch, err := c.conn.PrepareBatch(ctx, query)
 		if err != nil {
 			c.resetConn()
 			return fmt.Errorf("prepare batch: %w", err)
