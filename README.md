@@ -24,7 +24,9 @@ Simple NGINX access log parser and transporter to ClickHouse database. Uses the 
 - **Optional disk buffer** with segment files for crash recovery (at-least-once delivery)
 - **Server-side batching** via ClickHouse [async inserts](https://clickhouse.com/docs/en/optimize/asynchronous-inserts) (`async_insert=1, wait_for_async_insert=1`)
 - **Circuit breaker** to fast-fail when ClickHouse is persistently down
-- **Graceful shutdown** — flushes buffer on SIGTERM/SIGINT
+- **Bulk loading** (`-once`) — read an entire log file and exit
+- **Stdin support** (`-stdin`) — pipe or stream logs from other tools
+- **Graceful shutdown** — flushes buffer on SIGTERM/SIGINT or EOF
 - `/healthz` endpoint for Kubernetes liveness/readiness probes
 - Prometheus metrics: buffer size, flush latency, parse errors, circuit breaker state
 - Structured JSON logging
@@ -70,6 +72,38 @@ make docker
 4. On a configurable interval (or when the buffer is full), parses the buffered lines using the NGINX log format
 5. Batch-inserts parsed entries into ClickHouse via the native TCP protocol, with automatic retry on failure
 6. On shutdown (SIGTERM/SIGINT), flushes remaining buffer before exiting
+
+## Input Modes
+
+By default, nginx-clickhouse tails a log file continuously. Two additional modes are available:
+
+### Bulk Loading (`-once`)
+
+Read an entire log file from start to end, flush all entries, and exit. Useful for importing historical data.
+
+```sh
+./nginx-clickhouse -once -config_path=config/config.yml
+```
+
+The file is processed through the normal buffer/flush pipeline, so large files are handled in chunks without loading everything into memory.
+
+### Stdin (`-stdin`)
+
+Read log lines from standard input instead of a file. Supports both piped input and continuous streaming.
+
+```sh
+# Pipe a compressed log file
+zcat /var/log/nginx/access.log.1.gz | ./nginx-clickhouse -stdin -config_path=config/config.yml
+
+# Stream from journald
+journalctl -f -u nginx --output cat | ./nginx-clickhouse -stdin
+```
+
+When stdin reaches EOF (pipe closed), the remaining buffer is flushed and the process exits. SIGTERM/SIGINT still work for early termination.
+
+> **Note:** `-stdin` only replaces the log file source. All other configuration (ClickHouse connection, column mapping, log format) is still loaded from the config file.
+
+If both `-stdin` and `-once` are set, `-stdin` takes priority.
 
 ## Configuration
 

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -28,10 +29,16 @@ import (
 
 const defaultMaxBufferSize = 10000
 
-var checkMode bool
+var (
+	checkMode bool
+	onceMode  bool
+	stdinMode bool
+)
 
 func init() {
 	flag.BoolVar(&checkMode, "check", false, "Validate config and ClickHouse connectivity, then exit.")
+	flag.BoolVar(&onceMode, "once", false, "Read the log file from start to end, flush, and exit.")
+	flag.BoolVar(&stdinMode, "stdin", false, "Read log lines from stdin instead of a file.")
 }
 
 var (
@@ -190,7 +197,72 @@ func main() {
 		}
 	}()
 
-	logrus.WithField("path", cfg.Settings.LogPath).Info("opening log file")
+	// Determine the line source based on flags.
+	// Priority: -stdin > -once > tail (continuous).
+	lines := openLineSource(cfg)
+
+	go flushLoop(cfg, buf, parser, client, cb)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		sig := <-sigCh
+		logrus.WithField("signal", sig.String()).Info("received shutdown signal")
+		shutdown(buf, parser, client, cb)
+	}()
+
+	for line := range lines {
+		linesRead.Inc()
+		line = strings.TrimSpace(line)
+		if err := buf.Write(line); err != nil {
+			logrus.WithError(err).Warn("buffer write failed, line dropped")
+			linesNotProcessed.Inc()
+			continue
+		}
+		bufferSize.Set(float64(buf.Len()))
+		if buf.Len() >= cfg.Settings.MaxBufferSize {
+			flush(buf, parser, client, cb)
+		}
+	}
+
+	// Line source closed (EOF in -once or -stdin mode).
+	// In tail mode this is unreachable since follower never closes.
+	shutdown(buf, parser, client, cb)
+}
+
+// shutdown performs a final flush and cleans up resources before exit.
+func shutdown(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker) {
+	flush(buf, parser, client, cb)
+	client.Close()
+	if closer, ok := buf.(io.Closer); ok {
+		closer.Close()
+	}
+	logrus.Info("shutdown complete")
+	os.Exit(0)
+}
+
+// openLineSource returns a channel of log lines based on the active input mode.
+func openLineSource(cfg *configParser.Config) <-chan string {
+	if stdinMode {
+		if onceMode {
+			logrus.Warn("-stdin and -once both set; using -stdin")
+		}
+		logrus.Info("reading from stdin")
+		return scanLines(os.Stdin)
+	}
+
+	if onceMode {
+		logrus.WithField("path", cfg.Settings.LogPath).Info("reading file once")
+		f, err := os.Open(cfg.Settings.LogPath)
+		if err != nil {
+			logrus.Fatal("can't open log file: ", err)
+		}
+		return scanLines(f)
+	}
+
+	// Default: tail mode (continuous).
+	logrus.WithField("path", cfg.Settings.LogPath).Info("tailing log file")
 
 	whence := io.SeekStart
 	if cfg.Settings.SeekFromEnd {
@@ -206,43 +278,34 @@ func main() {
 		logrus.Fatal("can't tail log file: ", err)
 	}
 
-	go flushLoop(cfg, buf, parser, client, cb)
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
-
+	ch := make(chan string)
 	go func() {
-		sig := <-sigCh
-		logrus.WithField("signal", sig.String()).Info("received shutdown signal")
-
-		// Flush remaining buffer.
-		flush(buf, parser, client, cb)
-
-		// Close ClickHouse connection.
-		client.Close()
-
-		// Close disk buffer if applicable.
-		if closer, ok := buf.(io.Closer); ok {
-			closer.Close()
+		defer close(ch)
+		for line := range t.Lines() {
+			ch <- line.String()
 		}
-
-		logrus.Info("shutdown complete")
-		os.Exit(0)
 	}()
+	return ch
+}
 
-	for line := range t.Lines() {
-		linesRead.Inc()
-		line := strings.TrimSpace(line.String())
-		if err := buf.Write(line); err != nil {
-			logrus.WithError(err).Warn("buffer write failed, line dropped")
-			linesNotProcessed.Inc()
-			continue
+// scanLines reads lines from r and sends them on the returned channel.
+// The channel is closed when r reaches EOF or encounters an error.
+func scanLines(r io.Reader) <-chan string {
+	ch := make(chan string)
+	go func() {
+		defer close(ch)
+		if closer, ok := r.(io.Closer); ok && r != os.Stdin {
+			defer closer.Close()
 		}
-		bufferSize.Set(float64(buf.Len()))
-		if buf.Len() >= cfg.Settings.MaxBufferSize {
-			flush(buf, parser, client, cb)
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			ch <- scanner.Text()
 		}
-	}
+		if err := scanner.Err(); err != nil {
+			logrus.WithError(err).Error("error reading input")
+		}
+	}()
+	return ch
 }
 
 // flushLoop periodically flushes buffered log lines to ClickHouse.
