@@ -242,3 +242,24 @@ func TestRegexMatch(t *testing.T) {
 		t.Fatalf("expected 1 entry, got %d", len(result))
 	}
 }
+
+func TestSampleRateOutOfBounds(t *testing.T) {
+	tests := []struct {
+		name string
+		rate float64
+	}{
+		{"negative", -0.5},
+		{"over_one", 2.0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rules := []config.FilterRule{
+				{Expr: "status == 200", Action: "drop", SampleRate: tt.rate},
+			}
+			_, err := NewChain(rules, []string{"status"})
+			if err == nil {
+				t.Fatalf("expected error for sample_rate %g", tt.rate)
+			}
+		})
+	}
+}

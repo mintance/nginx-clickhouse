@@ -63,6 +63,9 @@ func NewChain(rules []config.FilterRule, fields []string) (*Chain, error) {
 		if r.Action != "drop" && r.Action != "keep" {
 			return nil, fmt.Errorf("invalid filter action %q (must be \"drop\" or \"keep\")", r.Action)
 		}
+		if r.SampleRate < 0 || r.SampleRate > 1 {
+			return nil, fmt.Errorf("invalid sample_rate %g for filter %q (must be 0-1)", r.SampleRate, r.Expr)
+		}
 
 		program, err := expr.Compile(r.Expr, expr.Env(env), expr.AsBool())
 		if err != nil {

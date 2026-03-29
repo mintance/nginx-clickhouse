@@ -33,6 +33,8 @@ settings:
   #   - expr: 'status >= 500'
   #     action: keep                       # keep only 5xx (drop everything else)
   # Env var: FILTER_RULES="status >= 500:keep;request contains /health:drop"
+  # Note: FILTER_RULES uses ":" as delimiter — expressions containing ":" (e.g. URLs)
+  # should use YAML config instead.
 # ClickHouse credentials
 clickhouse:
  db: metrics

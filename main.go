@@ -406,7 +406,7 @@ func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, c
 
 	if err := client.Save(entries); err != nil {
 		logrus.WithError(err).Error("can't save logs")
-		linesNotProcessed.Add(float64(len(lines)))
+		linesNotProcessed.Add(float64(len(entries)))
 		clickhouseUp.Set(0)
 		if cb != nil {
 			cb.RecordFailure()
@@ -421,8 +421,8 @@ func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, c
 		}
 		bufferSize.Set(float64(buf.Len()))
 	} else {
-		logrus.WithField("entries", len(lines)).Info("saved log entries")
-		linesProcessed.Add(float64(len(lines)))
+		logrus.WithField("entries", len(entries)).Info("saved log entries")
+		linesProcessed.Add(float64(len(entries)))
 		clickhouseUp.Set(1)
 		if cb != nil {
 			cb.RecordSuccess()
