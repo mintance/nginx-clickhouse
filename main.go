@@ -463,6 +463,25 @@ func runCheck(cfg *configParser.Config, parser *nginx.Parser, client *clickhouse
 		allOK = false
 	}
 
+	// Filters
+	if len(cfg.Settings.Filters) > 0 {
+		var fields []string
+		for _, source := range cfg.ClickHouse.Columns {
+			if !strings.HasPrefix(source, "_") {
+				fields = append(fields, source)
+			}
+		}
+		_, err := filter.NewChain(cfg.Settings.Filters, fields)
+		if err != nil {
+			fmt.Printf("✗ Filters: %v\n", err)
+			allOK = false
+		} else {
+			fmt.Printf("✓ Filters: %d rules compiled\n", len(cfg.Settings.Filters))
+		}
+	} else {
+		fmt.Println("· Filters: none configured")
+	}
+
 	// Log file
 	if _, err := os.Stat(cfg.Settings.LogPath); err != nil {
 		fmt.Printf("✗ Log file: %s (%v)\n", cfg.Settings.LogPath, err)
