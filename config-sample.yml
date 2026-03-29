@@ -19,6 +19,9 @@ settings:
     # extra:                 # arbitrary key-value pairs
     #   datacenter: us-east-1
     #   cluster: web-prod
+    # Any ENRICHMENT_ env var not matching a known field (HOSTNAME, ENVIRONMENT, SERVICE)
+    # is added to extra automatically:
+    #   ENRICHMENT_POD_NAMESPACE=default → extra["pod_namespace"] = "default"
 # ClickHouse credentials
 clickhouse:
  db: metrics
@@ -45,6 +48,8 @@ clickhouse:
    HttpUserAgent: http_user_agent
    # Hostname: _hostname           # enrichment: from settings.enrichments.hostname
    # StatusClass: _status_class    # enrichment: derived from status (2xx, 3xx, etc.)
+   # PodNamespace: _extra.pod_namespace  # enrichment: from ENRICHMENT_POD_NAMESPACE
+   # NodeName: _extra.node_name          # enrichment: from ENRICHMENT_NODE_NAME
 
 # NGINX
 nginx:

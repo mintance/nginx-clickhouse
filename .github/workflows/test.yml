@@ -32,6 +32,19 @@ jobs:
       - name: Build
         run: make build
 
+  validate-k8s-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | \
+            sudo tar -xz -C /usr/local/bin kubeconform
+
+      - name: Validate Kubernetes manifests
+        run: make validate-k8s-manifests
+
   integration-test:
     runs-on: ubuntu-latest
     services:

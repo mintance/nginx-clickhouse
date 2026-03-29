@@ -1,0 +1,91 @@
+# Sidecar deployment: nginx-clickhouse runs alongside NGINX,
+# reading logs from a shared emptyDir volume.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-with-clickhouse
+  labels:
+    app.kubernetes.io/name: nginx-with-clickhouse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-with-clickhouse
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-with-clickhouse
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2112"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:stable
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+
+        - name: nginx-clickhouse
+          image: mintance/nginx-clickhouse:latest
+          args: ["-config_path", "/etc/nginx-clickhouse/config.yml"]
+          ports:
+            - name: metrics
+              containerPort: 2112
+          envFrom:
+            - secretRef:
+                name: nginx-clickhouse-credentials
+          env:
+            # Kubernetes metadata via Downward API
+            - name: ENRICHMENT_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ENRICHMENT_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ENRICHMENT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: ENRICHMENT_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+              readOnly: true
+            - name: config
+              mountPath: /etc/nginx-clickhouse
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 2112
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 2112
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # resources:
+          #   requests:
+          #     cpu: 50m
+          #     memory: 64Mi
+          #   limits:
+          #     cpu: 200m
+          #     memory: 128Mi
+
+      volumes:
+        - name: nginx-logs
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: nginx-clickhouse

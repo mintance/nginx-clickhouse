@@ -1,4 +1,4 @@
-.PHONY: build docker lint test test-integration test-e2e
+.PHONY: build docker lint test test-integration test-e2e validate-k8s-manifests
 
 build:
 	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o nginx-clickhouse .
@@ -18,3 +18,6 @@ test-integration:
 
 test-e2e:
 	go test . -v -race -tags e2e -timeout 120s
+
+validate-k8s-manifests:
+	kubeconform -summary -strict -ignore-missing-schemas examples/kubernetes/
