@@ -143,6 +143,7 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `ENRICHMENT_HOSTNAME` | Hostname to add to logs (`auto` for os.Hostname) |
 | `ENRICHMENT_ENVIRONMENT` | Environment tag (e.g., `production`) |
 | `ENRICHMENT_SERVICE` | Service name tag |
+| `ENRICHMENT_EXTRA_*` | Dynamic extra enrichment fields (suffix lowercased as key, e.g. `ENRICHMENT_EXTRA_POD_NAMESPACE=default` sets `extra.pod_namespace`) |
 
 ### Full Config Example
 
@@ -441,6 +442,17 @@ readinessProbe:
   initialDelaySeconds: 5
   periodSeconds: 10
 ```
+
+### Kubernetes Deployment
+
+Example manifests are provided in [`examples/kubernetes/`](examples/kubernetes/) for two deployment modes:
+
+- **Sidecar**: runs alongside NGINX in the same pod, reads logs from a shared `emptyDir` volume
+- **DaemonSet**: one instance per node, reads from a `hostPath` log directory
+
+The manifests include Downward API integration for automatic pod metadata enrichment (pod name, namespace, node name, pod IP) via `ENRICHMENT_EXTRA_*` env vars.
+
+See the [Kubernetes examples README](examples/kubernetes/README.md) for full setup instructions.
 
 ## Logging
 
