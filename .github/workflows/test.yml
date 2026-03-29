@@ -32,6 +32,17 @@ jobs:
       - name: Build
         run: make build
 
+  validate-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate Kubernetes manifests
+        run: make validate-manifests
+
   integration-test:
     runs-on: ubuntu-latest
     services:

@@ -1,4 +1,4 @@
-.PHONY: build docker lint test test-integration test-e2e
+.PHONY: build docker lint test test-integration test-e2e validate-manifests
 
 build:
 	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o nginx-clickhouse .
@@ -18,3 +18,9 @@ test-integration:
 
 test-e2e:
 	go test . -v -race -tags e2e -timeout 120s
+
+validate-manifests:
+	kubectl apply --dry-run=client -f examples/kubernetes/configmap.yaml
+	kubectl apply --dry-run=client -f examples/kubernetes/secret.yaml
+	kubectl apply --dry-run=client -f examples/kubernetes/sidecar-deployment.yaml
+	kubectl apply --dry-run=client -f examples/kubernetes/daemonset.yaml
