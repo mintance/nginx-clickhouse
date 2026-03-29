@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/mintance/nginx-clickhouse/config"
+	"github.com/mintance/nginx-clickhouse/nginx"
 )
 
 // testEntry is a minimal LogEntry for testing.
@@ -49,7 +50,7 @@ func TestDropRule(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"status": "200"}},
 		&testEntry{fields: map[string]string{"status": "500"}},
 		&testEntry{fields: map[string]string{"status": "201"}},
@@ -74,7 +75,7 @@ func TestKeepRule(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"status": "200"}},
 		&testEntry{fields: map[string]string{"status": "503"}},
 	}
@@ -99,7 +100,7 @@ func TestMultipleRules(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"status": "200", "request": "/healthz"}},
 		&testEntry{fields: map[string]string{"status": "500", "request": "/api"}},
 		&testEntry{fields: map[string]string{"status": "200", "request": "/api"}},
@@ -121,7 +122,7 @@ func TestEmptyChain(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"status": "200"}},
 	}
 	result := chain.Apply(entries)
@@ -139,7 +140,7 @@ func TestSampleRateZeroKeepsAll(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"status": "200"}},
 	}
 	result := chain.Apply(entries)
@@ -157,7 +158,7 @@ func TestSampleRateOneKeepsAll(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"status": "200"}},
 	}
 	result := chain.Apply(entries)
@@ -175,7 +176,7 @@ func TestDropWithSamplingDropsFraction(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := make([]LogEntry, 100)
+	entries := make([]nginx.LogEntry, 100)
 	for i := range entries {
 		entries[i] = &testEntry{fields: map[string]string{"status": "200"}}
 	}
@@ -194,7 +195,7 @@ func TestFloatFieldComparison(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"request_time": "0.000"}},
 		&testEntry{fields: map[string]string{"request_time": "1.234"}},
 	}
@@ -213,7 +214,7 @@ func TestStringContains(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"request": "GET /healthz HTTP/1.1"}},
 		&testEntry{fields: map[string]string{"request": "GET /api/users HTTP/1.1"}},
 	}
@@ -232,7 +233,7 @@ func TestRegexMatch(t *testing.T) {
 		t.Fatalf("NewChain: %v", err)
 	}
 
-	entries := []LogEntry{
+	entries := []nginx.LogEntry{
 		&testEntry{fields: map[string]string{"request": "GET /healthz HTTP/1.1"}},
 		&testEntry{fields: map[string]string{"request": "POST /api HTTP/1.1"}},
 	}

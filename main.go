@@ -25,6 +25,7 @@ import (
 	"github.com/mintance/nginx-clickhouse/circuitbreaker"
 	"github.com/mintance/nginx-clickhouse/clickhouse"
 	configParser "github.com/mintance/nginx-clickhouse/config"
+	"github.com/mintance/nginx-clickhouse/filter"
 	"github.com/mintance/nginx-clickhouse/nginx"
 )
 
@@ -88,6 +89,11 @@ var (
 		Name: "nginx_clickhouse_circuit_breaker_rejections_total",
 		Help: "Total flushes rejected by circuit breaker",
 	})
+
+	linesFiltered = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_lines_filtered_total",
+		Help: "Total log entries dropped by filter rules",
+	})
 )
 
 func main() {
@@ -117,6 +123,25 @@ func main() {
 		if err != nil {
 			logrus.Fatal("can't parse nginx log format: ", err)
 		}
+	}
+
+	// Compile filter rules.
+	var filterChain *filter.Chain
+	if len(cfg.Settings.Filters) > 0 {
+		// Collect field names from column mappings (excluding enrichment fields).
+		var fields []string
+		for _, source := range cfg.ClickHouse.Columns {
+			if !strings.HasPrefix(source, "_") {
+				fields = append(fields, source)
+			}
+		}
+
+		var err error
+		filterChain, err = filter.NewChain(cfg.Settings.Filters, fields)
+		if err != nil {
+			logrus.Fatal("invalid filter rules: ", err)
+		}
+		logrus.WithField("rules", len(cfg.Settings.Filters)).Info("filter rules compiled")
 	}
 
 	if cfg.ClickHouse.UseServerSideBatching {
@@ -158,6 +183,9 @@ func main() {
 			entries = nginx.ParseLogs(parser, recovered)
 		} else {
 			entries = nginx.ParseJSONLogs(recovered)
+		}
+		if filterChain != nil {
+			entries = filterChain.Apply(entries)
 		}
 		if err := client.Save(entries); err != nil {
 			logrus.WithError(err).Error("failed to save recovered lines")
@@ -202,13 +230,13 @@ func main() {
 	// Priority: -stdin > -once > tail (continuous).
 	lines := openLineSource(cfg)
 
-	go flushLoop(cfg, buf, parser, client, cb)
+	go flushLoop(cfg, buf, parser, client, cb, filterChain)
 
 	// Guard against concurrent shutdown from signal + EOF.
 	var shutdownOnce sync.Once
 	doShutdown := func() {
 		shutdownOnce.Do(func() {
-			flush(buf, parser, client, cb)
+			flush(buf, parser, client, cb, filterChain)
 			client.Close()
 			if closer, ok := buf.(io.Closer); ok {
 				closer.Close()
@@ -237,7 +265,7 @@ func main() {
 		}
 		bufferSize.Set(float64(buf.Len()))
 		if buf.Len() >= cfg.Settings.MaxBufferSize {
-			flush(buf, parser, client, cb)
+			flush(buf, parser, client, cb, filterChain)
 		}
 	}
 
@@ -314,16 +342,16 @@ func scanLines(r io.Reader) <-chan string {
 }
 
 // flushLoop periodically flushes buffered log lines to ClickHouse.
-func flushLoop(cfg *configParser.Config, buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker) {
+func flushLoop(cfg *configParser.Config, buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker, fc *filter.Chain) {
 	interval := time.Duration(cfg.Settings.Interval) * time.Second
 	for {
 		time.Sleep(interval)
-		flush(buf, parser, client, cb)
+		flush(buf, parser, client, cb, fc)
 	}
 }
 
 // flush drains the log buffer and saves entries to ClickHouse.
-func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker) {
+func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, cb *circuitbreaker.CircuitBreaker, fc *filter.Chain) {
 	// Circuit breaker check BEFORE draining the buffer to avoid data loss.
 	if cb != nil && !cb.Allow() {
 		logrus.Warn("circuit breaker open, skipping flush")
@@ -356,7 +384,25 @@ func flush(buf buffer.Buffer, parser *nginx.Parser, client *clickhouse.Client, c
 	if parseErrs > 0 {
 		parseErrors.Add(parseErrs)
 	}
+
+	if fc != nil {
+		before := len(entries)
+		entries = fc.Apply(entries)
+		if dropped := before - len(entries); dropped > 0 {
+			linesFiltered.Add(float64(dropped))
+			logrus.WithFields(logrus.Fields{
+				"before": before,
+				"after":  len(entries),
+			}).Debug("filter applied")
+		}
+	}
+
 	batchSize.Observe(float64(len(entries)))
+
+	if len(entries) == 0 {
+		logrus.Debug("all entries filtered, skipping save")
+		return
+	}
 
 	if err := client.Save(entries); err != nil {
 		logrus.WithError(err).Error("can't save logs")

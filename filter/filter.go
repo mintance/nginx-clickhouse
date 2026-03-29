@@ -12,12 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/mintance/nginx-clickhouse/config"
+	"github.com/mintance/nginx-clickhouse/nginx"
 )
-
-// LogEntry is the interface for parsed log entries (matches nginx.LogEntry).
-type LogEntry interface {
-	Field(name string) (string, error)
-}
 
 // compiledRule holds a pre-compiled expression and its associated action.
 type compiledRule struct {
@@ -89,7 +85,7 @@ func NewChain(rules []config.FilterRule, fields []string) (*Chain, error) {
 // For "keep" rules, only matching entries are retained.
 // When a rule has a sample_rate, only that fraction of matching entries are
 // affected by the action.
-func (c *Chain) Apply(entries []LogEntry) []LogEntry {
+func (c *Chain) Apply(entries []nginx.LogEntry) []nginx.LogEntry {
 	if len(c.rules) == 0 || len(entries) == 0 {
 		return entries
 	}
@@ -102,8 +98,8 @@ func (c *Chain) Apply(entries []LogEntry) []LogEntry {
 }
 
 // applyRule filters entries through a single compiled rule.
-func applyRule(rule compiledRule, entries []LogEntry, fields []string) []LogEntry {
-	kept := make([]LogEntry, 0, len(entries))
+func applyRule(rule compiledRule, entries []nginx.LogEntry, fields []string) []nginx.LogEntry {
+	kept := make([]nginx.LogEntry, 0, len(entries))
 	for _, entry := range entries {
 		env := buildEnv(entry, fields)
 		output, err := expr.Run(rule.program, env)
@@ -167,7 +163,7 @@ func buildEnvSample(fields []string) map[string]any {
 
 // buildEnv extracts field values from a LogEntry into a map suitable for
 // expr.Run. Numeric fields are converted to their appropriate types.
-func buildEnv(entry LogEntry, fields []string) map[string]any {
+func buildEnv(entry nginx.LogEntry, fields []string) map[string]any {
 	env := make(map[string]any, len(fields))
 	for _, f := range fields {
 		val, err := entry.Field(f)
