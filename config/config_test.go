@@ -746,6 +746,49 @@ nginx:
 	}
 }
 
+func TestFiltersEnvVar(t *testing.T) {
+	yamlData := `
+settings:
+  interval: 5
+  log_path: test.log
+clickhouse:
+  db: metrics
+  table: nginx
+  host: localhost
+  port: "9000"
+  credentials:
+    user: default
+    password: ""
+  columns:
+    Status: status
+nginx:
+  log_type: main
+  log_format: '$remote_addr'
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(yamlData), &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	t.Setenv("FILTER_RULES", `status >= 500:keep;request_time == 0:drop:0.5`)
+	cfg.SetEnvVariables()
+
+	if len(cfg.Settings.Filters) != 2 {
+		t.Fatalf("expected 2 filters, got %d", len(cfg.Settings.Filters))
+	}
+
+	if cfg.Settings.Filters[0].Expr != "status >= 500" {
+		t.Errorf("unexpected expr: %s", cfg.Settings.Filters[0].Expr)
+	}
+	if cfg.Settings.Filters[0].Action != "keep" {
+		t.Errorf("unexpected action: %s", cfg.Settings.Filters[0].Action)
+	}
+
+	if cfg.Settings.Filters[1].SampleRate != 0.5 {
+		t.Errorf("unexpected sample_rate: %f", cfg.Settings.Filters[1].SampleRate)
+	}
+}
+
 func TestSetEnvVariablesEnrichmentExtraSkipsKnownFields(t *testing.T) {
 	cfg := &Config{}
 

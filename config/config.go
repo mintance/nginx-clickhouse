@@ -277,6 +277,35 @@ func (c *Config) SetEnvVariables() {
 		c.Settings.Enrichments.Service = v
 	}
 
+	if v := os.Getenv("FILTER_RULES"); v != "" {
+		var rules []FilterRule
+		for _, part := range strings.Split(v, ";") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			tokens := strings.SplitN(part, ":", 3)
+			if len(tokens) < 2 {
+				logrus.Errorf("invalid FILTER_RULES entry %q: expected expr:action[:sample_rate]", part)
+				continue
+			}
+			rule := FilterRule{
+				Expr:   strings.TrimSpace(tokens[0]),
+				Action: strings.TrimSpace(tokens[1]),
+			}
+			if len(tokens) == 3 {
+				rate, err := strconv.ParseFloat(strings.TrimSpace(tokens[2]), 64)
+				if err != nil {
+					logrus.Errorf("invalid sample_rate in FILTER_RULES entry %q: %v", part, err)
+					continue
+				}
+				rule.SampleRate = rate
+			}
+			rules = append(rules, rule)
+		}
+		c.Settings.Filters = rules
+	}
+
 	// Any ENRICHMENT_ env var not matching a known field goes into the extra map.
 	known := map[string]bool{"ENRICHMENT_HOSTNAME": true, "ENRICHMENT_ENVIRONMENT": true, "ENRICHMENT_SERVICE": true}
 	if c.Settings.Enrichments.Extra == nil {
