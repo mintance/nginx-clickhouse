@@ -24,7 +24,7 @@ data:
       db: metrics
       table: nginx
       host: clickhouse.clickhouse.svc.cluster.local
-      port: 9000
+      port: "9000"
       credentials:
         user: default
         password: ""

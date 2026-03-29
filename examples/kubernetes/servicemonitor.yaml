@@ -2,6 +2,10 @@
 # Requires the Prometheus Operator CRDs to be installed.
 # If you use annotation-based scraping instead, the pod annotations
 # in the Deployment/DaemonSet are sufficient — you can skip this file.
+#
+# Note: This selector matches the DaemonSet (app.kubernetes.io/name: nginx-clickhouse).
+# For sidecar mode, change the selector to match your Deployment labels
+# (e.g. app.kubernetes.io/name: nginx-with-clickhouse).
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
