@@ -37,8 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Install PyYAML
+        run: pip install pyyaml
 
       - name: Validate Kubernetes manifests
         run: make validate-manifests

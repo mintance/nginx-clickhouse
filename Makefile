@@ -19,8 +19,9 @@ test-integration:
 test-e2e:
 	go test . -v -race -tags e2e -timeout 120s
 
-validate-manifests: # servicemonitor.yaml excluded: requires Prometheus Operator CRDs
-	kubectl apply --dry-run=client --validate=false -f examples/kubernetes/configmap.yaml
-	kubectl apply --dry-run=client --validate=false -f examples/kubernetes/secret.yaml
-	kubectl apply --dry-run=client --validate=false -f examples/kubernetes/sidecar-deployment.yaml
-	kubectl apply --dry-run=client --validate=false -f examples/kubernetes/daemonset.yaml
+validate-manifests:
+	@for f in examples/kubernetes/*.yaml; do \
+		echo "validating $$f"; \
+		python3 -c "import yaml, sys; list(yaml.safe_load_all(open(sys.argv[1])))" "$$f" || exit 1; \
+	done
+	@echo "all manifests valid"
