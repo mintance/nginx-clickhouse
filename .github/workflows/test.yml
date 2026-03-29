@@ -32,7 +32,7 @@ jobs:
       - name: Build
         run: make build
 
-  validate-manifests:
+  validate-k8s-manifests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
             sudo tar -xz -C /usr/local/bin kubeconform
 
       - name: Validate Kubernetes manifests
-        run: make validate-manifests
+        run: make validate-k8s-manifests
 
   integration-test:
     runs-on: ubuntu-latest

@@ -7,30 +7,22 @@ Example manifests for deploying nginx-clickhouse in Kubernetes. Two deployment m
 Runs nginx-clickhouse alongside NGINX in the same pod, reading logs from a shared `emptyDir` volume.
 
 ```sh
-kubectl apply -f configmap.yaml
-kubectl apply -f secret.yaml
 kubectl apply -f sidecar-deployment.yaml
 ```
 
 Best for: per-pod log collection, application-level NGINX instances.
+
+You will need to create a ConfigMap with your `config.yml` (see [`config-sample.yml`](../../config-sample.yml)) and a Secret for ClickHouse credentials. Both are referenced in the manifest.
 
 ## DaemonSet Mode
 
 Runs one nginx-clickhouse instance per node, reading from a `hostPath` log directory.
 
 ```sh
-kubectl apply -f configmap.yaml
-kubectl apply -f secret.yaml
 kubectl apply -f daemonset.yaml
 ```
 
 Best for: node-level NGINX (ingress controllers), centralized log collection.
-
-## Configuration
-
-**ConfigMap** (`configmap.yaml`): Contains the `config.yml` mounted into the container. Edit the ClickHouse connection, column mappings, and NGINX log format to match your setup.
-
-**Secret** (`secret.yaml`): Stores ClickHouse credentials. In production, replace with your own secret management (ExternalSecrets, Vault, sealed-secrets).
 
 ## Kubernetes Metadata Enrichment
 
@@ -62,13 +54,7 @@ prometheus.io/port: "2112"
 prometheus.io/path: "/metrics"
 ```
 
-For Prometheus Operator, apply the ServiceMonitor:
-
-```sh
-kubectl apply -f servicemonitor.yaml
-```
-
-The ServiceMonitor targets the DaemonSet by default (`app.kubernetes.io/name: nginx-clickhouse`). For sidecar mode, adjust the selector in `servicemonitor.yaml` to match your Deployment labels.
+For Prometheus Operator, create a [ServiceMonitor](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.ServiceMonitor) targeting the `metrics` port (2112).
 
 ## Customization
 
