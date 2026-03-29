@@ -30,6 +30,7 @@ clickhouse:
  # ca_cert: /etc/ssl/clickhouse-ca.pem # path to CA certificate
  # tls_cert_path: /etc/ssl/client.crt  # path to client certificate (for mTLS)
  # tls_key_path: /etc/ssl/client.key   # path to client private key (for mTLS)
+ # use_server_side_batching: false     # delegate batching to ClickHouse async inserts (wait_for_async_insert=1)
  credentials:
   user: default
   password:

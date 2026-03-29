@@ -22,8 +22,11 @@ Simple NGINX access log parser and transporter to ClickHouse database. Uses the 
 - **Retry with exponential backoff** and full jitter on ClickHouse failures
 - **Automatic connection recovery** — reconnects transparently after outages
 - **Optional disk buffer** with segment files for crash recovery (at-least-once delivery)
+- **Server-side batching** via ClickHouse [async inserts](https://clickhouse.com/docs/en/optimize/asynchronous-inserts) (`async_insert=1, wait_for_async_insert=1`)
 - **Circuit breaker** to fast-fail when ClickHouse is persistently down
-- **Graceful shutdown** — flushes buffer on SIGTERM/SIGINT
+- **Bulk loading** (`-once`) — read an entire log file and exit
+- **Stdin support** (`-stdin`) — pipe or stream logs from other tools
+- **Graceful shutdown** — flushes buffer on SIGTERM/SIGINT or EOF
 - `/healthz` endpoint for Kubernetes liveness/readiness probes
 - Prometheus metrics: buffer size, flush latency, parse errors, circuit breaker state
 - Structured JSON logging
@@ -70,6 +73,38 @@ make docker
 5. Batch-inserts parsed entries into ClickHouse via the native TCP protocol, with automatic retry on failure
 6. On shutdown (SIGTERM/SIGINT), flushes remaining buffer before exiting
 
+## Input Modes
+
+By default, nginx-clickhouse tails a log file continuously. Two additional modes are available:
+
+### Bulk Loading (`-once`)
+
+Read an entire log file from start to end, flush all entries, and exit. Useful for importing historical data.
+
+```sh
+./nginx-clickhouse -once -config_path=config/config.yml
+```
+
+The file is processed through the normal buffer/flush pipeline, so large files are handled in chunks without loading everything into memory.
+
+### Stdin (`-stdin`)
+
+Read log lines from standard input instead of a file. Supports both piped input and continuous streaming.
+
+```sh
+# Pipe a compressed log file
+zcat /var/log/nginx/access.log.1.gz | ./nginx-clickhouse -stdin -config_path=config/config.yml
+
+# Stream from journald
+journalctl -f -u nginx --output cat | ./nginx-clickhouse -stdin
+```
+
+When stdin reaches EOF (pipe closed), the remaining buffer is flushed and the process exits. SIGTERM/SIGINT still work for early termination.
+
+> **Note:** `-stdin` only replaces the log file source. All other configuration (ClickHouse connection, column mapping, log format) is still loaded from the config file.
+
+If both `-stdin` and `-once` are set, `-stdin` takes priority.
+
 ## Configuration
 
 Configuration is loaded from a YAML file (default: `config/config.yml`). All values can be overridden with environment variables.
@@ -101,6 +136,7 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `CLICKHOUSE_CA_CERT` | Path to CA certificate file |
 | `CLICKHOUSE_TLS_CERT_PATH` | Path to client TLS certificate (for mTLS) |
 | `CLICKHOUSE_TLS_KEY_PATH` | Path to client TLS private key (for mTLS) |
+| `CLICKHOUSE_USE_SERVER_SIDE_BATCHING` | Delegate batching to ClickHouse async inserts (`true`/`false`) |
 | `NGINX_LOG_TYPE` | NGINX log format name |
 | `NGINX_LOG_FORMAT` | NGINX log format string |
 | `NGINX_LOG_FORMAT_TYPE` | Log format type: `text` (default) or `json` |
@@ -141,6 +177,7 @@ clickhouse:
   # ca_cert: /etc/ssl/clickhouse-ca.pem
   # tls_cert_path: /etc/ssl/client.crt  # client cert for mTLS
   # tls_key_path: /etc/ssl/client.key
+  # use_server_side_batching: false     # delegate batching to ClickHouse async inserts
   credentials:
     user: default
     password:
@@ -216,21 +253,28 @@ With JSON format, the `log_type` and `log_format` fields are not needed. The JSO
 
 ## ClickHouse Setup
 
-Create a table matching your column mapping:
+Create a table matching your column mapping. This schema uses compression codecs, monthly partitioning, and a 180-day TTL retention policy.
 
 ```sql
 CREATE TABLE metrics.nginx (
-    RemoteAddr    String,
-    RemoteUser    String,
-    TimeLocal     DateTime,
-    Date          Date DEFAULT toDate(TimeLocal),
-    Request       String,
-    Status        Int32,
-    BytesSent     Int64,
-    HttpReferer   String,
-    HttpUserAgent String
+    TimeLocal     DateTime    CODEC(Delta(4), ZSTD(1)),  -- delta on sequential timestamps
+    Date          Date        DEFAULT toDate(TimeLocal),
+    RemoteAddr    IPv4,                                   -- 4 bytes; use IPv6 for mixed traffic
+    RemoteUser    String      CODEC(ZSTD(1)),
+    Request       String      CODEC(ZSTD(1)),
+    Status        UInt16,
+    BytesSent     UInt64      CODEC(Delta(4), ZSTD(1)),
+    HttpReferer   String      CODEC(ZSTD(1)),
+    HttpUserAgent String      CODEC(ZSTD(1)),
+    Hostname      LowCardinality(String),                 -- few distinct values
+    Environment   LowCardinality(String),
+    Service       LowCardinality(String),
+    StatusClass   LowCardinality(String)
 ) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(Date)
 ORDER BY (Status, TimeLocal)
+TTL TimeLocal + INTERVAL 180 DAY                          -- adjust retention as needed
+SETTINGS ttl_only_drop_parts = 1;                         -- drop whole parts, not row-by-row
 ```
 
 ## Prometheus Metrics
@@ -331,6 +375,19 @@ States:
 
 Monitor via `nginx_clickhouse_circuit_breaker_state` (0=closed, 1=open, 2=half-open) and `nginx_clickhouse_circuit_breaker_rejections_total`.
 
+### Server-Side Batching
+
+By default, nginx-clickhouse batches log lines client-side using its internal buffer. You can optionally delegate batching to ClickHouse's [async inserts](https://clickhouse.com/docs/en/optimize/asynchronous-inserts):
+
+```yaml
+clickhouse:
+  use_server_side_batching: true
+```
+
+When enabled, each batch insert is sent with `async_insert=1` and `wait_for_async_insert=1`. ClickHouse buffers the data server-side and flushes based on its own thresholds (`async_insert_max_data_size`, `async_insert_busy_timeout_ms`). The `wait_for_async_insert=1` setting ensures the insert only returns after the server flush completes, preserving at-least-once delivery guarantees.
+
+Client-side buffering (interval-based flush, `max_buffer_size`) still applies — ClickHouse recommends batching even with async inserts for best throughput. The disk buffer is redundant when server-side batching is enabled (a warning is logged if both are active).
+
 ## Enrichments
 
 Enrichments let you automatically inject additional fields into every log entry — hostname, environment, service name, and derived status class — without any changes to the NGINX log format.
@@ -416,10 +473,10 @@ Template variables: `database` (default: `metrics`), `table` (default: `nginx`).
 
 ## Config Validation
 
-Run `--check` to validate your configuration without starting the service:
+Run `-check` to validate your configuration without starting the service:
 
 ```sh
-./nginx-clickhouse -config_path=config/config.yml --check
+./nginx-clickhouse -config_path=config/config.yml -check
 ```
 
 Output:

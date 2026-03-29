@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-nginx-clickhouse is a Go microservice that tails NGINX access logs and batch-inserts parsed entries into ClickHouse using the native TCP protocol. It supports both traditional text log formats and JSON access logs (`log_format escape=json`), and provides log enrichment (auto-hostname, environment, service tags, status class derivation). It features retry with exponential backoff, optional disk buffering for crash recovery, circuit breaker, structured JSON logging, and Prometheus metrics.
+nginx-clickhouse is a Go microservice that tails NGINX access logs and batch-inserts parsed entries into ClickHouse using the native TCP protocol. It supports both traditional text log formats and JSON access logs (`log_format escape=json`), and provides log enrichment (auto-hostname, environment, service tags, status class derivation). It features retry with exponential backoff, optional disk buffering for crash recovery, circuit breaker, optional server-side batching via ClickHouse async inserts, structured JSON logging, and Prometheus metrics.
 
 ## Architecture
 
@@ -11,7 +11,7 @@ main.go                    → Entry point: tail, buffer, flush loop, graceful s
 config/config.go           → YAML config + env var overrides (structured types)
 nginx/nginx.go             → Parses NGINX log lines using gonx (configurable log format)
 nginx/json.go              → Parses NGINX JSON access logs (log_format escape=json) and applies enrichments
-clickhouse/clickhouse.go   → Client struct: connection mgmt, retry-wrapped Save, health check
+clickhouse/clickhouse.go   → Client struct: connection mgmt, retry-wrapped Save, health check, async inserts
 retry/retry.go             → Exponential backoff with full jitter
 buffer/buffer.go           → Buffer interface + MemoryBuffer
 buffer/disk.go             → DiskBuffer: segment-file append, rotation, crash recovery replay
@@ -36,7 +36,7 @@ go run main.go            # Run locally (reads config/config.yml by default)
 - YAML config: see `config-sample.yml` for full reference
 - Default ClickHouse port: 9000 (native TCP protocol)
 - All settings overridable via env vars (see README for full table)
-- Key config sections: settings (interval, buffer, retry, circuit_breaker), clickhouse (connection, columns mapping), nginx (log format)
+- Key config sections: settings (interval, buffer, retry, circuit_breaker), clickhouse (connection, columns mapping, server-side batching), nginx (log format)
 
 ## Dependencies
 
@@ -62,6 +62,12 @@ go test ./... -race                     # All tests with race detector
 
 CI will reject PRs that fail any of these checks.
 
+## Git Conventions
+
+- Branch from `master`
+- Commit format: `type: description` (e.g., `fix:`, `chore:`, `feat:`)
+- PRs merged to `master` trigger deployment
+
 ## Code Conventions
 
 - Standard Go formatting (`gofmt`), verified by `go vet`
@@ -75,11 +81,11 @@ CI will reject PRs that fail any of these checks.
 ## Testing
 
 ```bash
-go test ./... -v -race              # 68 unit tests across 6 packages
+go test ./... -v -race              # 78 unit tests across 7 packages
 go test ./clickhouse/ -v -tags integration  # Integration tests (requires ClickHouse)
 ```
 
-Packages with tests: retry (7), buffer (10), circuitbreaker (5), clickhouse (15 unit + 4 integration), config (16), nginx (15).
+Packages with tests: main (5), retry (7), buffer (10), circuitbreaker (5), clickhouse (15 unit + 12 integration), config (21), nginx (15).
 
 ## CI/CD
 
