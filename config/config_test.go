@@ -8,6 +8,25 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const minimalYAML = `
+settings:
+  interval: 5
+  log_path: test.log
+clickhouse:
+  db: metrics
+  table: nginx
+  host: localhost
+  port: "9000"
+  credentials:
+    user: default
+    password: ""
+  columns:
+    Status: status
+nginx:
+  log_type: main
+  log_format: '$remote_addr'
+`
+
 func TestRead(t *testing.T) {
 	content := `
 settings:
@@ -816,5 +835,86 @@ func TestSetEnvVariablesEnrichmentExtraSkipsKnownFields(t *testing.T) {
 	// Known fields should NOT be in extra
 	if _, ok := cfg.Settings.Enrichments.Extra["hostname"]; ok {
 		t.Error("expected hostname to NOT be in Extra map")
+	}
+}
+
+func TestFiltersEnvVarEdgeCases(t *testing.T) {
+	t.Run("empty string", func(t *testing.T) {
+		var cfg Config
+		if err := yaml.Unmarshal([]byte(minimalYAML), &cfg); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		t.Setenv("FILTER_RULES", "")
+		cfg.SetEnvVariables()
+		if len(cfg.Settings.Filters) != 0 {
+			t.Errorf("expected 0 filters, got %d", len(cfg.Settings.Filters))
+		}
+	})
+
+	t.Run("trailing semicolons", func(t *testing.T) {
+		var cfg Config
+		if err := yaml.Unmarshal([]byte(minimalYAML), &cfg); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		t.Setenv("FILTER_RULES", "status >= 500:keep;")
+		cfg.SetEnvVariables()
+		if len(cfg.Settings.Filters) != 1 {
+			t.Errorf("expected 1 filter, got %d", len(cfg.Settings.Filters))
+		}
+	})
+
+	t.Run("single token no colon", func(t *testing.T) {
+		var cfg Config
+		if err := yaml.Unmarshal([]byte(minimalYAML), &cfg); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		t.Setenv("FILTER_RULES", "invalid-no-colon")
+		cfg.SetEnvVariables()
+		if len(cfg.Settings.Filters) != 0 {
+			t.Errorf("expected 0 filters (invalid entry skipped), got %d", len(cfg.Settings.Filters))
+		}
+	})
+}
+
+func TestFiltersEnvVarReplacesYAML(t *testing.T) {
+	yamlWithFilters := `
+settings:
+  interval: 5
+  log_path: test.log
+  filters:
+    - expr: 'status == 200'
+      action: drop
+    - expr: 'status == 300'
+      action: drop
+clickhouse:
+  db: metrics
+  table: nginx
+  host: localhost
+  port: "9000"
+  credentials:
+    user: default
+    password: ""
+  columns:
+    Status: status
+nginx:
+  log_type: main
+  log_format: '$remote_addr'
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(yamlWithFilters), &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(cfg.Settings.Filters) != 2 {
+		t.Fatalf("expected 2 YAML filters, got %d", len(cfg.Settings.Filters))
+	}
+
+	t.Setenv("FILTER_RULES", "status >= 500:keep")
+	cfg.SetEnvVariables()
+
+	if len(cfg.Settings.Filters) != 1 {
+		t.Fatalf("expected 1 filter (env replaces YAML), got %d", len(cfg.Settings.Filters))
+	}
+	if cfg.Settings.Filters[0].Expr != "status >= 500" {
+		t.Errorf("unexpected expr: %s", cfg.Settings.Filters[0].Expr)
 	}
 }

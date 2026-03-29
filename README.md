@@ -446,7 +446,7 @@ settings:
 Each rule has:
 - **`expr`** — boolean expression evaluated against log fields
 - **`action`** — `drop` (remove matching entries) or `keep` (retain only matching entries)
-- **`sample_rate`** (optional, 0-1) — fraction of matches affected by the action. `0.9` on a drop rule means drop 90% of matches, keep 10%.
+- **`sample_rate`** (optional, 0-1) — fraction of matches affected by the action. On a `drop` rule, `0.9` means drop 90% of matches (keep 10%). On a `keep` rule, `0.1` means retain 10% of matches (drop the rest along with non-matching entries).
 
 Rules are applied sequentially: drop rules remove entries first, then keep rules narrow the remainder.
 
@@ -573,6 +573,7 @@ Output:
 ```
 ✓ Config loaded
 ✓ Log format: JSON
+✓ Filters: 3 rules compiled
 ✓ Log file: /var/log/nginx/access.log
 ✓ ClickHouse connection: OK (localhost:9000)
 ✓ Database: OK ("metrics" exists)
