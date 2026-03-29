@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -266,5 +267,15 @@ func (c *Config) SetEnvVariables() {
 	}
 	if v := os.Getenv("ENRICHMENT_SERVICE"); v != "" {
 		c.Settings.Enrichments.Service = v
+	}
+
+	if c.Settings.Enrichments.Extra == nil {
+		c.Settings.Enrichments.Extra = make(map[string]string)
+	}
+	for _, env := range os.Environ() {
+		key, val, _ := strings.Cut(env, "=")
+		if after, ok := strings.CutPrefix(key, "ENRICHMENT_EXTRA_"); ok {
+			c.Settings.Enrichments.Extra[strings.ToLower(after)] = val
+		}
 	}
 }
