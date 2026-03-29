@@ -26,14 +26,14 @@ Best for: node-level NGINX (ingress controllers), centralized log collection.
 
 ## Kubernetes Metadata Enrichment
 
-The manifests inject pod metadata via the [Downward API](https://kubernetes.io/docs/concepts/workloads/pods/downward-api/) as `ENRICHMENT_EXTRA_*` env vars:
+The manifests inject pod metadata via the [Downward API](https://kubernetes.io/docs/concepts/workloads/pods/downward-api/) as `ENRICHMENT_*` env vars. Any `ENRICHMENT_` env var not matching a known field (`HOSTNAME`, `ENVIRONMENT`, `SERVICE`) is automatically added to the enrichment extra map:
 
 | Env Var | Source | Extra Key |
 |---|---|---|
 | `ENRICHMENT_HOSTNAME` | `metadata.name` | (sets hostname) |
-| `ENRICHMENT_EXTRA_POD_NAMESPACE` | `metadata.namespace` | `pod_namespace` |
-| `ENRICHMENT_EXTRA_NODE_NAME` | `spec.nodeName` | `node_name` |
-| `ENRICHMENT_EXTRA_POD_IP` | `status.podIP` | `pod_ip` |
+| `ENRICHMENT_POD_NAMESPACE` | `metadata.namespace` | `pod_namespace` |
+| `ENRICHMENT_NODE_NAME` | `spec.nodeName` | `node_name` |
+| `ENRICHMENT_POD_IP` | `status.podIP` | `pod_ip` |
 
 Map these to ClickHouse columns via `_extra.<key>` in the column mapping:
 

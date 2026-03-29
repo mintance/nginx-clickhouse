@@ -629,7 +629,7 @@ func TestSetEnvVariablesInvalidInterval(t *testing.T) {
 func TestSetEnvVariablesEnrichmentExtra(t *testing.T) {
 	cfg := &Config{}
 
-	t.Setenv("ENRICHMENT_EXTRA_POD_NAMESPACE", "default")
+	t.Setenv("ENRICHMENT_POD_NAMESPACE", "default")
 
 	cfg.SetEnvVariables()
 
@@ -641,9 +641,9 @@ func TestSetEnvVariablesEnrichmentExtra(t *testing.T) {
 func TestSetEnvVariablesEnrichmentExtraMultiple(t *testing.T) {
 	cfg := &Config{}
 
-	t.Setenv("ENRICHMENT_EXTRA_POD_NAMESPACE", "kube-system")
-	t.Setenv("ENRICHMENT_EXTRA_NODE_NAME", "node-1")
-	t.Setenv("ENRICHMENT_EXTRA_POD_IP", "10.0.0.5")
+	t.Setenv("ENRICHMENT_POD_NAMESPACE", "kube-system")
+	t.Setenv("ENRICHMENT_NODE_NAME", "node-1")
+	t.Setenv("ENRICHMENT_POD_IP", "10.0.0.5")
 
 	cfg.SetEnvVariables()
 
@@ -664,7 +664,7 @@ func TestSetEnvVariablesEnrichmentExtraOverridesYAML(t *testing.T) {
 		"datacenter": "us-east-1",
 	}
 
-	t.Setenv("ENRICHMENT_EXTRA_DATACENTER", "eu-west-1")
+	t.Setenv("ENRICHMENT_DATACENTER", "eu-west-1")
 
 	cfg.SetEnvVariables()
 
@@ -676,7 +676,7 @@ func TestSetEnvVariablesEnrichmentExtraOverridesYAML(t *testing.T) {
 func TestSetEnvVariablesEnrichmentExtraEmptyValue(t *testing.T) {
 	cfg := &Config{}
 
-	t.Setenv("ENRICHMENT_EXTRA_EMPTY_KEY", "")
+	t.Setenv("ENRICHMENT_EMPTY_KEY", "")
 
 	cfg.SetEnvVariables()
 
@@ -686,5 +686,35 @@ func TestSetEnvVariablesEnrichmentExtraEmptyValue(t *testing.T) {
 	}
 	if val != "" {
 		t.Errorf("expected empty string, got %s", val)
+	}
+}
+
+func TestSetEnvVariablesEnrichmentExtraSkipsKnownFields(t *testing.T) {
+	cfg := &Config{}
+
+	t.Setenv("ENRICHMENT_HOSTNAME", "my-host")
+	t.Setenv("ENRICHMENT_ENVIRONMENT", "staging")
+	t.Setenv("ENRICHMENT_SERVICE", "my-svc")
+	t.Setenv("ENRICHMENT_POD_NAMESPACE", "default")
+
+	cfg.SetEnvVariables()
+
+	// Known fields go to their struct fields, not extra
+	if cfg.Settings.Enrichments.Hostname != "my-host" {
+		t.Errorf("expected Hostname=my-host, got %s", cfg.Settings.Enrichments.Hostname)
+	}
+	if cfg.Settings.Enrichments.Environment != "staging" {
+		t.Errorf("expected Environment=staging, got %s", cfg.Settings.Enrichments.Environment)
+	}
+	if cfg.Settings.Enrichments.Service != "my-svc" {
+		t.Errorf("expected Service=my-svc, got %s", cfg.Settings.Enrichments.Service)
+	}
+	// Unknown field goes to extra
+	if cfg.Settings.Enrichments.Extra["pod_namespace"] != "default" {
+		t.Errorf("expected Extra[pod_namespace]=default, got %s", cfg.Settings.Enrichments.Extra["pod_namespace"])
+	}
+	// Known fields should NOT be in extra
+	if _, ok := cfg.Settings.Enrichments.Extra["hostname"]; ok {
+		t.Error("expected hostname to NOT be in Extra map")
 	}
 }

@@ -269,12 +269,14 @@ func (c *Config) SetEnvVariables() {
 		c.Settings.Enrichments.Service = v
 	}
 
+	// Any ENRICHMENT_ env var not matching a known field goes into the extra map.
+	known := map[string]bool{"ENRICHMENT_HOSTNAME": true, "ENRICHMENT_ENVIRONMENT": true, "ENRICHMENT_SERVICE": true}
 	if c.Settings.Enrichments.Extra == nil {
 		c.Settings.Enrichments.Extra = make(map[string]string)
 	}
 	for _, env := range os.Environ() {
 		key, val, _ := strings.Cut(env, "=")
-		if after, ok := strings.CutPrefix(key, "ENRICHMENT_EXTRA_"); ok {
+		if after, ok := strings.CutPrefix(key, "ENRICHMENT_"); ok && !known[key] {
 			c.Settings.Enrichments.Extra[strings.ToLower(after)] = val
 		}
 	}
