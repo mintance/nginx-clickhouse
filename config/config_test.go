@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v2"
 )
 
 func TestRead(t *testing.T) {
@@ -686,6 +688,61 @@ func TestSetEnvVariablesEnrichmentExtraEmptyValue(t *testing.T) {
 	}
 	if val != "" {
 		t.Errorf("expected empty string, got %s", val)
+	}
+}
+
+func TestFiltersConfig(t *testing.T) {
+	yamlData := `
+settings:
+  interval: 5
+  log_path: test.log
+  filters:
+    - expr: 'status >= 200 && status < 300'
+      action: drop
+    - expr: 'status == 200'
+      action: keep
+      sample_rate: 0.1
+clickhouse:
+  db: metrics
+  table: nginx
+  host: localhost
+  port: "9000"
+  credentials:
+    user: default
+    password: ""
+  columns:
+    Status: status
+nginx:
+  log_type: main
+  log_format: '$remote_addr'
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(yamlData), &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(cfg.Settings.Filters) != 2 {
+		t.Fatalf("expected 2 filters, got %d", len(cfg.Settings.Filters))
+	}
+
+	if cfg.Settings.Filters[0].Expr != "status >= 200 && status < 300" {
+		t.Errorf("unexpected expr: %s", cfg.Settings.Filters[0].Expr)
+	}
+	if cfg.Settings.Filters[0].Action != "drop" {
+		t.Errorf("unexpected action: %s", cfg.Settings.Filters[0].Action)
+	}
+	if cfg.Settings.Filters[0].SampleRate != 0 {
+		t.Errorf("unexpected sample_rate: %f", cfg.Settings.Filters[0].SampleRate)
+	}
+
+	if cfg.Settings.Filters[1].Expr != "status == 200" {
+		t.Errorf("unexpected expr: %s", cfg.Settings.Filters[1].Expr)
+	}
+	if cfg.Settings.Filters[1].Action != "keep" {
+		t.Errorf("unexpected action: %s", cfg.Settings.Filters[1].Action)
+	}
+	if cfg.Settings.Filters[1].SampleRate != 0.1 {
+		t.Errorf("unexpected sample_rate: %f", cfg.Settings.Filters[1].SampleRate)
 	}
 }
 

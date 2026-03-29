@@ -42,6 +42,7 @@ type SettingsConfig struct {
 	Buffer         BufferConfig         `yaml:"buffer"`
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
 	Enrichments    EnrichmentConfig     `yaml:"enrichments"`
+	Filters        []FilterRule         `yaml:"filters"`
 }
 
 // BufferConfig holds buffering settings.
@@ -59,6 +60,13 @@ type EnrichmentConfig struct {
 	Environment string            `yaml:"environment"` // e.g. "production", "staging"
 	Service     string            `yaml:"service"`     // service name tag
 	Extra       map[string]string `yaml:"extra"`       // arbitrary key-value pairs
+}
+
+// FilterRule defines a single filter/sampling rule evaluated against parsed log entries.
+type FilterRule struct {
+	Expr       string  `yaml:"expr"`        // expr-lang expression, must return bool
+	Action     string  `yaml:"action"`      // "drop" (discard matches) or "keep" (retain only matches)
+	SampleRate float64 `yaml:"sample_rate"` // 0 = no sampling; 0.1 = keep 10% of matches
 }
 
 // CircuitBreakerConfig holds circuit breaker settings.
