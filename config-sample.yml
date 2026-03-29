@@ -22,6 +22,19 @@ settings:
     # Any ENRICHMENT_ env var not matching a known field (HOSTNAME, ENVIRONMENT, SERVICE)
     # is added to extra automatically:
     #   ENRICHMENT_POD_NAMESPACE=default → extra["pod_namespace"] = "default"
+  # filters:                              # filter/sample parsed entries before saving
+  #   - expr: 'request contains "/health"' # drop health check noise
+  #     action: drop
+  #   - expr: 'status >= 200 && status < 300'
+  #     action: drop                       # drop all 2xx
+  #     sample_rate: 0.9                   # actually, drop 90% of 2xx (keep 10%)
+  #   - expr: 'request_time == 0'
+  #     action: drop                       # drop cached responses with zero latency
+  #   - expr: 'status >= 500'
+  #     action: keep                       # keep only 5xx (drop everything else)
+  # Env var: FILTER_RULES="status >= 500:keep;request contains /health:drop"
+  # Note: FILTER_RULES uses ":" as delimiter — expressions containing ":" (e.g. URLs)
+  # should use YAML config instead.
 # ClickHouse credentials
 clickhouse:
  db: metrics

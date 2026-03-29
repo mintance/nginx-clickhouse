@@ -42,6 +42,7 @@ type SettingsConfig struct {
 	Buffer         BufferConfig         `yaml:"buffer"`
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
 	Enrichments    EnrichmentConfig     `yaml:"enrichments"`
+	Filters        []FilterRule         `yaml:"filters"`
 }
 
 // BufferConfig holds buffering settings.
@@ -59,6 +60,13 @@ type EnrichmentConfig struct {
 	Environment string            `yaml:"environment"` // e.g. "production", "staging"
 	Service     string            `yaml:"service"`     // service name tag
 	Extra       map[string]string `yaml:"extra"`       // arbitrary key-value pairs
+}
+
+// FilterRule defines a single filter/sampling rule evaluated against parsed log entries.
+type FilterRule struct {
+	Expr       string  `yaml:"expr"`        // expr-lang expression, must return bool
+	Action     string  `yaml:"action"`      // "drop" (discard matches) or "keep" (retain only matches)
+	SampleRate float64 `yaml:"sample_rate"` // 0 = no sampling; 0.1 = keep 10% of matches
 }
 
 // CircuitBreakerConfig holds circuit breaker settings.
@@ -267,6 +275,35 @@ func (c *Config) SetEnvVariables() {
 	}
 	if v := os.Getenv("ENRICHMENT_SERVICE"); v != "" {
 		c.Settings.Enrichments.Service = v
+	}
+
+	if v := os.Getenv("FILTER_RULES"); v != "" {
+		var rules []FilterRule
+		for _, part := range strings.Split(v, ";") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			tokens := strings.SplitN(part, ":", 3)
+			if len(tokens) < 2 {
+				logrus.Errorf("invalid FILTER_RULES entry %q: expected expr:action[:sample_rate]", part)
+				continue
+			}
+			rule := FilterRule{
+				Expr:   strings.TrimSpace(tokens[0]),
+				Action: strings.TrimSpace(tokens[1]),
+			}
+			if len(tokens) == 3 {
+				rate, err := strconv.ParseFloat(strings.TrimSpace(tokens[2]), 64)
+				if err != nil {
+					logrus.Errorf("invalid sample_rate in FILTER_RULES entry %q: %v", part, err)
+					continue
+				}
+				rule.SampleRate = rate
+			}
+			rules = append(rules, rule)
+		}
+		c.Settings.Filters = rules
 	}
 
 	// Any ENRICHMENT_ env var not matching a known field goes into the extra map.

@@ -29,6 +29,7 @@ Simple NGINX access log parser and transporter to ClickHouse database. Uses the 
 - **Graceful shutdown** — flushes buffer on SIGTERM/SIGINT or EOF
 - `/healthz` endpoint for Kubernetes liveness/readiness probes
 - Prometheus metrics: buffer size, flush latency, parse errors, circuit breaker state
+- **Expression-based filtering and sampling** — drop health checks, keep only 5xx, sample 10% of 2xx, etc. via [expr-lang](https://expr-lang.org/)
 - Structured JSON logging
 - Configuration via YAML file or environment variables
 - Minimal Docker image (scratch-based)
@@ -143,6 +144,7 @@ Configuration is loaded from a YAML file (default: `config/config.yml`). All val
 | `ENRICHMENT_HOSTNAME` | Hostname to add to logs (`auto` for os.Hostname) |
 | `ENRICHMENT_ENVIRONMENT` | Environment tag (e.g., `production`) |
 | `ENRICHMENT_SERVICE` | Service name tag |
+| `FILTER_RULES` | Filter rules in compact format: `expr:action[:sample_rate]` separated by `;` (see [Filtering & Sampling](#filtering--sampling)) |
 | `ENRICHMENT_<key>` | Any other `ENRICHMENT_` var is added to the extra map (suffix lowercased, e.g. `ENRICHMENT_POD_NAMESPACE=default` sets `extra["pod_namespace"]`) |
 
 ### Full Config Example
@@ -288,6 +290,7 @@ Available at `http://localhost:2112/metrics`:
 | `nginx_clickhouse_lines_not_processed_total` | Total log lines that failed to save |
 | `nginx_clickhouse_lines_read_total` | Total lines read from the log file |
 | `nginx_clickhouse_parse_errors_total` | Total lines that failed to parse |
+| `nginx_clickhouse_lines_filtered_total` | Total entries dropped by filter rules |
 | `nginx_clickhouse_buffer_size` | Current number of lines in the buffer |
 | `nginx_clickhouse_clickhouse_up` | Whether ClickHouse is reachable (1/0) |
 | `nginx_clickhouse_flush_duration_seconds` | Time spent per flush (histogram) |
@@ -420,6 +423,81 @@ Map enrichment fields to ClickHouse columns using the `_` prefix in the column m
 | `_status_class` | HTTP status class derived from the `status` field (e.g., `2xx`, `4xx`, `5xx`) |
 | `_extra.<key>` | Arbitrary key-value pairs from the `enrichments.extra` map |
 
+## Filtering & Sampling
+
+Filter and sample parsed log entries before they are saved to ClickHouse. Rules use the [expr](https://expr-lang.org/) expression language and are evaluated post-parse against structured log fields.
+
+### Configuration
+
+```yaml
+settings:
+  filters:
+    - expr: 'request contains "/health"'
+      action: drop                         # drop health check noise
+    - expr: 'status >= 200 && status < 300'
+      action: drop
+      sample_rate: 0.9                     # drop 90% of 2xx (keep 10%)
+    - expr: 'request_time == 0'
+      action: drop                         # drop cached responses
+    - expr: 'status >= 500'
+      action: keep                         # keep only 5xx
+```
+
+Each rule has:
+- **`expr`** — boolean expression evaluated against log fields
+- **`action`** — `drop` (remove matching entries) or `keep` (retain only matching entries)
+- **`sample_rate`** (optional, 0-1) — fraction of matches affected by the action. On a `drop` rule, `0.9` means drop 90% of matches (keep 10%). On a `keep` rule, `0.1` means retain 10% of matches (drop the rest along with non-matching entries).
+
+Rules are applied sequentially: drop rules remove entries first, then keep rules narrow the remainder.
+
+### Available Fields
+
+Expressions can reference any NGINX log field from your column mapping. Numeric fields are automatically converted for comparisons:
+
+| Type | Fields |
+|---|---|
+| **Integer** | `status`, `bytes_sent`, `body_bytes_sent`, `request_length`, `connection`, `connections_active`, `connections_waiting` |
+| **Float** | `request_time`, `upstream_response_time`, `upstream_connect_time`, `upstream_header_time`, `msec` |
+| **String** | `remote_addr`, `remote_user`, `request`, `http_referer`, `http_user_agent`, and any other field |
+
+### Expression Examples
+
+```yaml
+# Numeric comparisons (no type casting needed)
+- expr: 'status >= 500'
+- expr: 'request_time > 1.0'
+- expr: 'bytes_sent == 0'
+
+# String operations
+- expr: 'request contains "/api/v2"'
+- expr: 'http_user_agent contains "bot"'
+- expr: 'request matches "^GET /health"'      # regex
+
+# Combined conditions
+- expr: 'status == 200 && request contains "/health"'
+- expr: 'status >= 400 || request_time > 5'
+```
+
+### Environment Variable
+
+For simple rules, use the `FILTER_RULES` env var with compact `expr:action[:sample_rate]` format, separated by `;`:
+
+```sh
+FILTER_RULES="status >= 500:keep;request_time == 0:drop"
+```
+
+> **Note:** `FILTER_RULES` uses `:` as a delimiter. Expressions containing `:` (e.g., URLs) should use YAML config instead.
+
+### Validation
+
+Filter expressions are compiled and validated at startup. Invalid expressions cause the service to exit with an error. Use `-check` to validate filters without starting:
+
+```
+✓ Filters: 3 rules compiled
+```
+
+Monitor `nginx_clickhouse_lines_filtered_total` to track how many entries are being dropped.
+
 ### Health Check
 
 `GET /healthz` on port 2112 returns:
@@ -495,6 +573,7 @@ Output:
 ```
 ✓ Config loaded
 ✓ Log format: JSON
+✓ Filters: 3 rules compiled
 ✓ Log file: /var/log/nginx/access.log
 ✓ ClickHouse connection: OK (localhost:9000)
 ✓ Database: OK ("metrics" exists)
