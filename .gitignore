@@ -12,3 +12,9 @@ logs/*.log
 config.yml
 
 nginx-clickhouse
+
+# Worktrees
+.worktrees/
+
+# Superpowers
+docs/superpowers/
