@@ -72,7 +72,7 @@ jobs:
 
       - name: Install kubeconform
         run: |
-          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | \
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | \
             sudo tar -xz -C /usr/local/bin kubeconform
 
       - name: Validate Kubernetes manifests
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       clickhouse:
-        image: clickhouse/clickhouse-server:24.12
+        image: clickhouse/clickhouse-server:latest
         ports:
           - 9000:9000
           - 8123:8123
