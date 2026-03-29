@@ -7,7 +7,7 @@ docker:
 	docker build --rm --no-cache=true -t mintance/nginx-clickhouse -f Dockerfile .
 
 lint:
-	gofmt -l .
+	test -z "$$(gofmt -l . | grep -v '^vendor/')"
 	go vet ./...
 
 test:
