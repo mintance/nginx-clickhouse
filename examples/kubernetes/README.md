@@ -68,6 +68,8 @@ For Prometheus Operator, apply the ServiceMonitor:
 kubectl apply -f servicemonitor.yaml
 ```
 
+The ServiceMonitor targets the DaemonSet by default (`app.kubernetes.io/name: nginx-clickhouse`). For sidecar mode, adjust the selector in `servicemonitor.yaml` to match your Deployment labels.
+
 ## Customization
 
 - **Resources**: Uncomment and adjust `resources` blocks in the Deployment/DaemonSet.

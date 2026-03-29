@@ -19,7 +19,7 @@ test-integration:
 test-e2e:
 	go test . -v -race -tags e2e -timeout 120s
 
-validate-manifests:
+validate-manifests: # servicemonitor.yaml excluded: requires Prometheus Operator CRDs
 	kubectl apply --dry-run=client -f examples/kubernetes/configmap.yaml
 	kubectl apply --dry-run=client -f examples/kubernetes/secret.yaml
 	kubectl apply --dry-run=client -f examples/kubernetes/sidecar-deployment.yaml

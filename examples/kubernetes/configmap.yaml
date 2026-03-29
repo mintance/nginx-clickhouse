@@ -25,7 +25,7 @@ data:
       table: nginx
       host: clickhouse.clickhouse.svc.cluster.local
       port: "9000"
-      credentials:
+      credentials:         # overridden by Secret env vars (CLICKHOUSE_USER, CLICKHOUSE_PASSWORD)
         user: default
         password: ""
       columns:
