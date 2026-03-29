@@ -11,6 +11,7 @@ main.go                    → Entry point: tail, buffer, flush loop, graceful s
 config/config.go           → YAML config + env var overrides (structured types)
 nginx/nginx.go             → Parses NGINX log lines using gonx (configurable log format)
 nginx/json.go              → Parses NGINX JSON access logs (log_format escape=json) and applies enrichments
+filter/filter.go           → Expression-based filtering and sampling (expr-lang/expr)
 clickhouse/clickhouse.go   → Client struct: connection mgmt, retry-wrapped Save, health check, async inserts
 retry/retry.go             → Exponential backoff with full jitter
 buffer/buffer.go           → Buffer interface + MemoryBuffer
@@ -18,7 +19,7 @@ buffer/disk.go             → DiskBuffer: segment-file append, rotation, crash 
 circuitbreaker/circuitbreaker.go → Circuit breaker (closed/open/half-open states)
 ```
 
-Flow: startup replay (disk buffer) → tail log → buffer lines (memory or disk) → periodic flush (or buffer-full trigger) → parse → retry-wrapped batch insert → graceful shutdown on SIGTERM.
+Flow: startup replay (disk buffer) → tail log → buffer lines (memory or disk) → periodic flush (or buffer-full trigger) → parse → filter/sample → retry-wrapped batch insert → graceful shutdown on SIGTERM.
 
 ## Build & Run
 
@@ -46,6 +47,7 @@ go run main.go            # Run locally (reads config/config.yml by default)
 - `satyrius/gonx` — NGINX log format parsing
 - `sirupsen/logrus` — structured JSON logging
 - `prometheus/client_golang` — Prometheus metrics
+- `expr-lang/expr` — Expression evaluation for log filtering
 - `gopkg.in/yaml.v2` — YAML config parsing
 - No external deps for retry, buffer, or circuit breaker (pure Go stdlib)
 
@@ -81,11 +83,11 @@ CI will reject PRs that fail any of these checks.
 ## Testing
 
 ```bash
-go test ./... -v -race              # 78 unit tests across 7 packages
+go test ./... -v -race              # 92 unit tests across 8 packages
 go test ./clickhouse/ -v -tags integration  # Integration tests (requires ClickHouse)
 ```
 
-Packages with tests: main (5), retry (7), buffer (10), circuitbreaker (5), clickhouse (15 unit + 12 integration), config (21), nginx (15).
+Packages with tests: main (5), retry (7), buffer (10), circuitbreaker (5), clickhouse (15 unit + 12 integration), config (23), filter (14), nginx (15).
 
 ## CI/CD
 
