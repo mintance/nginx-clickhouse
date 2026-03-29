@@ -37,6 +37,7 @@ func FuzzParseField(f *testing.F) {
 func FuzzParseLogs(f *testing.F) {
 	f.Add(`93.180.71.3 - - [17/May/2015:08:05:32 +0000] "GET /downloads/product_1 HTTP/1.1" 304 0 "-" "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"`)
 	f.Add(`127.0.0.1 - admin [04/Nov/2018:12:30:45 +0000] "POST /api HTTP/2.0" 201 512 "https://example.com" "curl/7.64.1"`)
+	f.Add(`127.0.0.1 - - [01/Jan/2000:00:00:00 +0000] "" 0 0 "" ""`)
 	f.Add(`invalid log line that should not crash`)
 	f.Add(``)
 

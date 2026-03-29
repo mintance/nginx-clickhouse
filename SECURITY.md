@@ -13,7 +13,7 @@ responsibly.
 
 **Please do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, please send an email to **security@mintance.com** with:
+Instead, please send an email to **security@motiv8.team** with:
 
 - A description of the vulnerability
 - Steps to reproduce the issue
