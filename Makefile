@@ -20,8 +20,4 @@ test-e2e:
 	go test . -v -race -tags e2e -timeout 120s
 
 validate-manifests:
-	@for f in examples/kubernetes/*.yaml; do \
-		echo "validating $$f"; \
-		python3 -c "import yaml, sys; list(yaml.safe_load_all(open(sys.argv[1])))" "$$f" || exit 1; \
-	done
-	@echo "all manifests valid"
+	kubeconform -summary -strict -ignore-missing-schemas examples/kubernetes/
