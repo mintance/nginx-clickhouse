@@ -13,12 +13,11 @@ responsibly.
 
 **Please do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, please send an email to **security@motiv8.team** with:
+Instead, use [GitHub's private vulnerability reporting](https://github.com/mintance/nginx-clickhouse/security/advisories/new):
 
-- A description of the vulnerability
-- Steps to reproduce the issue
-- Any relevant logs or screenshots
-- Your suggested fix (if any)
+1. Go to the **Security** tab of this repository
+2. Click **Report a vulnerability**
+3. Fill in the details (description, steps to reproduce, impact)
 
 We will acknowledge receipt within 48 hours and aim to provide a fix or
 mitigation plan within 7 days.
