@@ -61,6 +61,9 @@ clickhouse:
    HttpUserAgent: http_user_agent
    # Hostname: _hostname           # enrichment: from settings.enrichments.hostname
    # StatusClass: _status_class    # enrichment: derived from status (2xx, 3xx, etc.)
+   # RefererDomain: _referrer_domain  # enrichment: domain extracted from http_referer
+   # UrlExtension: _url_extension    # enrichment: file extension from request URL (.html → "html")
+   # IsBot: _is_bot                  # enrichment: "1" if user agent is a bot/crawler, "0" otherwise
    # PodNamespace: _extra.pod_namespace  # enrichment: from ENRICHMENT_POD_NAMESPACE
    # NodeName: _extra.node_name          # enrichment: from ENRICHMENT_NODE_NAME
 

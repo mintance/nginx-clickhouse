@@ -8,7 +8,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"maps"
+	"net/url"
 	"os"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -233,6 +235,9 @@ func buildRow(keys []string, columns map[string]string, entry nginx.LogEntry, en
 //   - _environment: from EnrichmentConfig.Environment
 //   - _service: from EnrichmentConfig.Service
 //   - _status_class: derived from the entry's "status" field (e.g. "200" -> "2xx")
+//   - _referrer_domain: domain extracted from the entry's "http_referer" field
+//   - _url_extension: file extension extracted from the request URL (e.g. "html", "js")
+//   - _is_bot: "1" if the user agent looks like a bot/crawler, "0" otherwise
 //   - _extra.<key>: from EnrichmentConfig.Extra map
 func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentConfig) any {
 	switch field {
@@ -251,6 +256,12 @@ func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentC
 			return ""
 		}
 		return string(status[0]) + "xx"
+	case "_referrer_domain":
+		return extractReferrerDomain(entry)
+	case "_url_extension":
+		return extractURLExtension(entry)
+	case "_is_bot":
+		return detectBot(entry)
 	default:
 		if strings.HasPrefix(field, "_extra.") {
 			key := strings.TrimPrefix(field, "_extra.")
@@ -261,4 +272,71 @@ func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentC
 		}
 		return ""
 	}
+}
+
+// extractReferrerDomain parses the http_referer field and returns its hostname.
+// Returns "" for missing, empty, or "-" referers.
+func extractReferrerDomain(entry nginx.LogEntry) string {
+	referer, err := entry.Field("http_referer")
+	if err != nil || referer == "" || referer == "-" {
+		return ""
+	}
+	u, err := url.Parse(referer)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return u.Hostname()
+}
+
+// extractURLExtension extracts the file extension from the request URL.
+// It expects the "request" field in the format "METHOD /path HTTP/version".
+// Returns the extension without the dot (e.g. "html", "js"), or "" if none.
+func extractURLExtension(entry nginx.LogEntry) string {
+	request, err := entry.Field("request")
+	if err != nil || request == "" {
+		return ""
+	}
+	// Extract the path from "GET /path?query HTTP/1.1".
+	parts := strings.SplitN(request, " ", 3)
+	if len(parts) < 2 {
+		return ""
+	}
+	urlPath := parts[1]
+	// Strip query string and fragment.
+	if i := strings.IndexAny(urlPath, "?#"); i >= 0 {
+		urlPath = urlPath[:i]
+	}
+	ext := path.Ext(urlPath)
+	if ext == "" {
+		return ""
+	}
+	return ext[1:] // strip leading dot
+}
+
+// botPatterns contains lowercase substrings commonly found in bot/crawler
+// user-agent strings.
+var botPatterns = []string{
+	"bot", "crawl", "spider", "slurp", "wget", "curl",
+	"mediapartners", "feedfetcher", "lighthouse", "pingdom",
+	"uptimerobot", "headlesschrome", "phantomjs", "httrack",
+	"ahrefsbot", "semrushbot", "dotbot", "mj12bot", "baiduspider",
+	"yandexbot", "duckduckbot", "facebookexternalhit", "twitterbot",
+	"linkedinbot", "whatsapp", "telegrambot", "discordbot",
+	"applebot", "petalbot", "bytespider", "gptbot", "claudebot",
+}
+
+// detectBot checks if the http_user_agent field matches known bot patterns.
+// Returns "1" for bots, "0" for non-bots.
+func detectBot(entry nginx.LogEntry) string {
+	ua, err := entry.Field("http_user_agent")
+	if err != nil || ua == "" || ua == "-" {
+		return "0"
+	}
+	lower := strings.ToLower(ua)
+	for _, pattern := range botPatterns {
+		if strings.Contains(lower, pattern) {
+			return "1"
+		}
+	}
+	return "0"
 }
