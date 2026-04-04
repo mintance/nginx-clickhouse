@@ -27,16 +27,24 @@ import (
 	"github.com/mintance/nginx-clickhouse/retry"
 )
 
-// uaParser is the shared, cached user-agent parser instance.
-// ShardedCache deduplicates repeated ParseString calls for the same UA string.
-var uaParser *uax.ShardedCache
+// uaParser is the shared, cached user-agent parser instance, initialized
+// lazily on first use. This avoids allocating memory for the 313+ bot
+// signatures when no UA enrichment fields are configured.
+var (
+	uaParser     *uax.ShardedCache
+	uaParserOnce sync.Once
+)
 
-func init() {
-	p, err := uax.NewParser()
-	if err != nil {
-		logrus.WithError(err).Fatal("initialize UA parser")
-	}
-	uaParser = uax.NewShardedCache(p, 16, 256)
+// getUAParser returns the shared UA parser, initializing it on first call.
+func getUAParser() *uax.ShardedCache {
+	uaParserOnce.Do(func() {
+		p, err := uax.NewParser()
+		if err != nil {
+			logrus.WithError(err).Fatal("initialize UA parser")
+		}
+		uaParser = uax.NewShardedCache(p, 16, 256)
+	})
+	return uaParser
 }
 
 // Client manages the ClickHouse connection with automatic reconnection
@@ -321,7 +329,7 @@ func parseUA(entry nginx.LogEntry) uax.Result {
 	if err != nil || ua == "" || ua == "-" {
 		return uax.Result{}
 	}
-	return uaParser.ParseString(ua)
+	return getUAParser().ParseString(ua)
 }
 
 // extractReferrerDomain parses the http_referer field and returns its hostname.
