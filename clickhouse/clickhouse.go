@@ -27,8 +27,17 @@ import (
 	"github.com/mintance/nginx-clickhouse/retry"
 )
 
-// uaParser is the shared user-agent parser instance.
-var uaParser, _ = uax.NewParser()
+// uaParser is the shared, cached user-agent parser instance.
+// ShardedCache deduplicates repeated ParseString calls for the same UA string.
+var uaParser *uax.ShardedCache
+
+func init() {
+	p, err := uax.NewParser()
+	if err != nil {
+		logrus.WithError(err).Fatal("initialize UA parser")
+	}
+	uaParser = uax.NewShardedCache(p, 16, 256)
+}
 
 // Client manages the ClickHouse connection with automatic reconnection
 // and retry logic.
@@ -351,5 +360,5 @@ func extractURLExtension(entry nginx.LogEntry) string {
 	if ext == "" {
 		return ""
 	}
-	return ext[1:] // strip leading dot
+	return strings.ToLower(ext[1:]) // strip leading dot, normalize case
 }

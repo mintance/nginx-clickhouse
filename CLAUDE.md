@@ -48,6 +48,7 @@ go run main.go            # Run locally (reads config/config.yml by default)
 - `sirupsen/logrus` — structured JSON logging
 - `prometheus/client_golang` — Prometheus metrics
 - `expr-lang/expr` — Expression evaluation for log filtering
+- `motiv8-team/go-ua-parser` — User-agent parsing and bot detection
 - `gopkg.in/yaml.v2` — YAML config parsing
 - No external deps for retry, buffer, or circuit breaker (pure Go stdlib)
 
