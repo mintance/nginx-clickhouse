@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
 	github.com/expr-lang/expr v1.17.8
+	github.com/motiv8-team/go-ua-parser v0.2.0
 	github.com/papertrail/go-tail v0.0.0-20221103124010-5087eb6a0a07
 	github.com/prometheus/client_golang v1.23.2
 	github.com/satyrius/gonx v1.4.0

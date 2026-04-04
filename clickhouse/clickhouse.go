@@ -8,7 +8,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"maps"
+	"net/url"
 	"os"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,12 +19,82 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	uax "github.com/motiv8-team/go-ua-parser"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 
 	"github.com/mintance/nginx-clickhouse/config"
 	"github.com/mintance/nginx-clickhouse/nginx"
 	"github.com/mintance/nginx-clickhouse/retry"
 )
+
+var (
+	uaParseDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "nginx_clickhouse_ua_parse_duration_seconds",
+		Help:    "Time spent parsing a user-agent string (cache misses only)",
+		Buckets: []float64{0.000001, 0.000005, 0.00001, 0.00005, 0.0001, 0.0005, 0.001},
+	})
+	uaBotTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_ua_bot_total",
+		Help: "Total user-agent strings detected as bots",
+	})
+	uaCacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_ua_cache_hits_total",
+		Help: "Total UA parser cache hits",
+	})
+	uaCacheMisses = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_ua_cache_misses_total",
+		Help: "Total UA parser cache misses",
+	})
+)
+
+// uaParser is the shared, cached user-agent parser instance, initialized
+// lazily on first use. This avoids allocating memory for the 313+ bot
+// signatures when no UA enrichment fields are configured.
+var (
+	uaParser      *uax.ShardedCache
+	uaParserOnce  sync.Once
+	uaLastStats   uax.CacheStats
+	uaLastStatsMu sync.Mutex
+)
+
+// getUAParser returns the shared UA parser, initializing it on first call.
+func getUAParser() *uax.ShardedCache {
+	uaParserOnce.Do(func() {
+		p, err := uax.NewParser(
+			uax.WithPostParseHook(func(_ uax.Input, result uax.Result, d time.Duration) {
+				uaParseDuration.Observe(d.Seconds())
+				if result.IsBot {
+					uaBotTotal.Inc()
+				}
+			}),
+		)
+		if err != nil {
+			logrus.WithError(err).Fatal("initialize UA parser")
+		}
+		uaParser = uax.NewShardedCache(p, 16, 256)
+	})
+	return uaParser
+}
+
+// updateUACacheMetrics syncs the sharded cache stats to Prometheus counters.
+// Called after each batch to avoid per-parse lock overhead.
+func updateUACacheMetrics() {
+	if uaParser == nil {
+		return
+	}
+	stats := uaParser.Stats()
+	uaLastStatsMu.Lock()
+	if delta := stats.Hits - uaLastStats.Hits; delta > 0 {
+		uaCacheHits.Add(float64(delta))
+	}
+	if delta := stats.Misses - uaLastStats.Misses; delta > 0 {
+		uaCacheMisses.Add(float64(delta))
+	}
+	uaLastStats = stats
+	uaLastStatsMu.Unlock()
+}
 
 // Client manages the ClickHouse connection with automatic reconnection
 // and retry logic.
@@ -106,6 +178,7 @@ func (c *Client) Save(entries []nginx.LogEntry) error {
 			c.resetConn()
 			return fmt.Errorf("send batch: %w", err)
 		}
+		updateUACacheMetrics()
 		return nil
 	})
 }
@@ -233,6 +306,15 @@ func buildRow(keys []string, columns map[string]string, entry nginx.LogEntry, en
 //   - _environment: from EnrichmentConfig.Environment
 //   - _service: from EnrichmentConfig.Service
 //   - _status_class: derived from the entry's "status" field (e.g. "200" -> "2xx")
+//   - _referrer_domain: domain extracted from the entry's "http_referer" field
+//   - _url_extension: file extension extracted from the request URL (e.g. "html", "js")
+//   - _is_bot: "1" if the user agent is a bot/crawler, "0" otherwise
+//   - _bot_name: name of the detected bot (e.g. "Googlebot"), empty if not a bot
+//   - _bot_class: bot category (e.g. "search", "social", "ai", "seo-tool", "monitor", "scraper")
+//   - _browser: browser name (e.g. "Chrome", "Firefox", "Safari")
+//   - _browser_version: browser major version (e.g. "120")
+//   - _os: operating system name (e.g. "Windows", "Linux", "macOS")
+//   - _device_type: device class (e.g. "desktop", "mobile", "tablet")
 //   - _extra.<key>: from EnrichmentConfig.Extra map
 func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentConfig) any {
 	switch field {
@@ -251,6 +333,34 @@ func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentC
 			return ""
 		}
 		return string(status[0]) + "xx"
+	case "_referrer_domain":
+		return extractReferrerDomain(entry)
+	case "_url_extension":
+		return extractURLExtension(entry)
+	case "_is_bot":
+		r := parseUA(entry)
+		if r.IsBot {
+			return "1"
+		}
+		return "0"
+	case "_bot_name":
+		r := parseUA(entry)
+		return r.Bot.Name
+	case "_bot_class":
+		r := parseUA(entry)
+		return string(r.Bot.Class)
+	case "_browser":
+		r := parseUA(entry)
+		return r.Browser.Name
+	case "_browser_version":
+		r := parseUA(entry)
+		return r.Browser.Major
+	case "_os":
+		r := parseUA(entry)
+		return r.OS.Name
+	case "_device_type":
+		r := parseUA(entry)
+		return r.DeviceClass()
 	default:
 		if strings.HasPrefix(field, "_extra.") {
 			key := strings.TrimPrefix(field, "_extra.")
@@ -261,4 +371,52 @@ func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentC
 		}
 		return ""
 	}
+}
+
+// parseUA parses the http_user_agent field using the UA parser.
+func parseUA(entry nginx.LogEntry) uax.Result {
+	ua, err := entry.Field("http_user_agent")
+	if err != nil || ua == "" || ua == "-" {
+		return uax.Result{}
+	}
+	return getUAParser().ParseString(ua)
+}
+
+// extractReferrerDomain parses the http_referer field and returns its hostname.
+// Returns "" for missing, empty, or "-" referers.
+func extractReferrerDomain(entry nginx.LogEntry) string {
+	referer, err := entry.Field("http_referer")
+	if err != nil || referer == "" || referer == "-" {
+		return ""
+	}
+	u, err := url.Parse(referer)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return u.Hostname()
+}
+
+// extractURLExtension extracts the file extension from the request URL.
+// It expects the "request" field in the format "METHOD /path HTTP/version".
+// Returns the extension without the dot (e.g. "html", "js"), or "" if none.
+func extractURLExtension(entry nginx.LogEntry) string {
+	request, err := entry.Field("request")
+	if err != nil || request == "" {
+		return ""
+	}
+	// Extract the path from "GET /path?query HTTP/1.1".
+	parts := strings.SplitN(request, " ", 3)
+	if len(parts) < 2 {
+		return ""
+	}
+	urlPath := parts[1]
+	// Strip query string and fragment.
+	if i := strings.IndexAny(urlPath, "?#"); i >= 0 {
+		urlPath = urlPath[:i]
+	}
+	ext := path.Ext(urlPath)
+	if ext == "" {
+		return ""
+	}
+	return strings.ToLower(ext[1:]) // strip leading dot, normalize case
 }

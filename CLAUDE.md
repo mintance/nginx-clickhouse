@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-nginx-clickhouse is a Go microservice that tails NGINX access logs and batch-inserts parsed entries into ClickHouse using the native TCP protocol. It supports both traditional text log formats and JSON access logs (`log_format escape=json`), and provides log enrichment (auto-hostname, environment, service tags, status class derivation). It features retry with exponential backoff, optional disk buffering for crash recovery, circuit breaker, optional server-side batching via ClickHouse async inserts, structured JSON logging, and Prometheus metrics.
+nginx-clickhouse is a Go microservice that tails NGINX access logs and batch-inserts parsed entries into ClickHouse using the native TCP protocol. It supports both traditional text log formats and JSON access logs (`log_format escape=json`), and provides log enrichment (auto-hostname, environment, service tags, status class, referrer domain, URL extension, bot detection, browser/OS/device via user-agent parsing). It features retry with exponential backoff, optional disk buffering for crash recovery, circuit breaker, optional server-side batching via ClickHouse async inserts, structured JSON logging, and Prometheus metrics.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ config/config.go           → YAML config + env var overrides (structured types
 nginx/nginx.go             → Parses NGINX log lines using gonx (configurable log format)
 nginx/json.go              → Parses NGINX JSON access logs (log_format escape=json) and applies enrichments
 filter/filter.go           → Expression-based filtering and sampling (expr-lang/expr)
-clickhouse/clickhouse.go   → Client struct: connection mgmt, retry-wrapped Save, health check, async inserts
+clickhouse/clickhouse.go   → Client struct: connection mgmt, retry-wrapped Save, health check, async inserts, derived enrichments (referrer domain, URL extension, UA parsing via go-ua-parser)
 retry/retry.go             → Exponential backoff with full jitter
 buffer/buffer.go           → Buffer interface + MemoryBuffer
 buffer/disk.go             → DiskBuffer: segment-file append, rotation, crash recovery replay
@@ -41,13 +41,14 @@ go run main.go            # Run locally (reads config/config.yml by default)
 
 ## Dependencies
 
-- Go 1.25 (as declared in go.mod)
+- Go 1.26 (as declared in go.mod)
 - `ClickHouse/clickhouse-go/v2` — ClickHouse native TCP client
 - `papertrail/go-tail` — log file tailing
 - `satyrius/gonx` — NGINX log format parsing
 - `sirupsen/logrus` — structured JSON logging
 - `prometheus/client_golang` — Prometheus metrics
 - `expr-lang/expr` — Expression evaluation for log filtering
+- `motiv8-team/go-ua-parser` — User-agent parsing and bot detection
 - `gopkg.in/yaml.v2` — YAML config parsing
 - No external deps for retry, buffer, or circuit breaker (pure Go stdlib)
 
@@ -83,11 +84,11 @@ CI will reject PRs that fail any of these checks.
 ## Testing
 
 ```bash
-go test ./... -v -race              # 145 unit tests across 8 packages
+go test ./... -v -race              # 118 unit tests across 8 packages
 go test ./clickhouse/ -v -tags integration  # Integration tests (requires ClickHouse)
 ```
 
-Packages with tests: main (5), retry (7), buffer (10), circuitbreaker (5), clickhouse (15 unit + 12 integration), config (33), filter (23), nginx (39).
+Packages with tests: main (5), retry (7), buffer (10), circuitbreaker (5), clickhouse (21 unit + 12 integration), config (30), filter (22), nginx (18).
 
 ## CI/CD
 

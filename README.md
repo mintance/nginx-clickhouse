@@ -17,7 +17,8 @@ Simple NGINX access log parser and transporter to ClickHouse database. Uses the 
 - Tails NGINX access logs in real-time
 - Configurable log format parsing via [gonx](https://github.com/satyrius/gonx)
 - **JSON access log support** (`log_format escape=json`) alongside traditional text format
-- **Log enrichment**: auto-hostname, environment, service tags, status class derivation
+- **Log enrichment**: auto-hostname, environment, service tags, status class, referrer domain, URL extension
+- **User-agent parsing and bot detection** via [go-ua-parser](https://github.com/motiv8-team/go-ua-parser) — browser, OS, device type, bot name/class
 - Batch inserts into ClickHouse using the [official Go client](https://github.com/ClickHouse/clickhouse-go) (native TCP, LZ4 compression)
 - **Retry with exponential backoff** and full jitter on ClickHouse failures
 - **Automatic connection recovery** — reconnects transparently after outages
@@ -193,6 +194,12 @@ clickhouse:
     BytesSent: bytes_sent
     HttpReferer: http_referer
     HttpUserAgent: http_user_agent
+    # RefererDomain: _referrer_domain   # enrichment: domain from http_referer
+    # UrlExtension: _url_extension      # enrichment: file extension from URL
+    # IsBot: _is_bot                    # enrichment: bot detection (1/0)
+    # BotName: _bot_name                # enrichment: bot identifier
+    # Browser: _browser                 # enrichment: browser name
+    # OS: _os                           # enrichment: operating system
 
 nginx:
   log_type: main
@@ -272,7 +279,16 @@ CREATE TABLE metrics.nginx (
     Hostname      LowCardinality(String),                 -- few distinct values
     Environment   LowCardinality(String),
     Service       LowCardinality(String),
-    StatusClass   LowCardinality(String)
+    StatusClass   LowCardinality(String),
+    RefererDomain LowCardinality(String),                -- derived from http_referer
+    UrlExtension  LowCardinality(String),                -- file extension from request URL
+    IsBot         UInt8         DEFAULT 0,               -- 1 = bot/crawler
+    BotName       LowCardinality(String),                -- e.g. "Googlebot"
+    BotClass      LowCardinality(String),                -- search, social, ai, seo-tool, etc.
+    Browser       LowCardinality(String),                -- e.g. "Chrome"
+    BrowserVersion String       CODEC(ZSTD(1)),
+    OS            LowCardinality(String),                -- e.g. "Windows"
+    DeviceType    LowCardinality(String)                 -- desktop, mobile, tablet
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(Date)
 ORDER BY (Status, TimeLocal)
@@ -297,6 +313,10 @@ Available at `http://localhost:2112/metrics`:
 | `nginx_clickhouse_batch_size` | Number of entries per flush (histogram) |
 | `nginx_clickhouse_circuit_breaker_state` | Circuit breaker state (0=closed, 1=open, 2=half-open) |
 | `nginx_clickhouse_circuit_breaker_rejections_total` | Flushes rejected by circuit breaker |
+| `nginx_clickhouse_ua_parse_duration_seconds` | Time spent parsing a user-agent string (histogram, cache misses only) |
+| `nginx_clickhouse_ua_bot_total` | Total user-agent strings detected as bots |
+| `nginx_clickhouse_ua_cache_hits_total` | UA parser cache hits |
+| `nginx_clickhouse_ua_cache_misses_total` | UA parser cache misses |
 
 ## Reliability
 
@@ -421,7 +441,18 @@ Map enrichment fields to ClickHouse columns using the `_` prefix in the column m
 | `_environment` | Environment tag (e.g., `production`, `staging`) |
 | `_service` | Service name tag |
 | `_status_class` | HTTP status class derived from the `status` field (e.g., `2xx`, `4xx`, `5xx`) |
+| `_referrer_domain` | Domain extracted from the `http_referer` field (e.g., `https://example.com/page` → `example.com`) |
+| `_url_extension` | File extension from the request URL (e.g., `GET /app.js?v=1` → `js`) |
+| `_is_bot` | `1` if the user agent is a bot/crawler, `0` otherwise |
+| `_bot_name` | Bot identifier (e.g., `Googlebot`, `GPTBot`), empty if not a bot |
+| `_bot_class` | Bot category: `search`, `social`, `ai`, `seo-tool`, `monitor`, `scraper` |
+| `_browser` | Browser name (e.g., `Chrome`, `Firefox`, `Safari`) |
+| `_browser_version` | Browser major version (e.g., `120`) |
+| `_os` | Operating system (e.g., `Windows`, `Linux`, `macOS`) |
+| `_device_type` | Device class: `desktop`, `mobile`, `tablet`, `smarttv`, `console`, `unknown` |
 | `_extra.<key>` | Arbitrary key-value pairs from the `enrichments.extra` map |
+
+User-agent enrichments (`_is_bot`, `_bot_name`, `_bot_class`, `_browser`, `_browser_version`, `_os`, `_device_type`) are powered by [go-ua-parser](https://github.com/motiv8-team/go-ua-parser), which provides 313+ named bot signatures with heuristic fallback detection. Results are cached via sharded LRU for high throughput.
 
 ## Filtering & Sampling
 

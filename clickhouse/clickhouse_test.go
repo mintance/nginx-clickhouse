@@ -283,6 +283,202 @@ func TestBuildRowExtraEnrichmentMissingKey(t *testing.T) {
 	}
 }
 
+func TestBuildRowReferrerDomain(t *testing.T) {
+	tests := []struct {
+		name     string
+		referer  string
+		expected string
+	}{
+		{"full url", "https://example.com/page?q=1", "example.com"},
+		{"with port", "https://example.com:8080/page", "example.com"},
+		{"http", "http://sub.domain.org/path", "sub.domain.org"},
+		{"dash", "-", ""},
+		{"empty", "", ""},
+		{"bare path", "/local/path", ""},
+		{"invalid url", "://bad", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			columns := map[string]string{"RefDomain": "_referrer_domain"}
+			keys := []string{"RefDomain"}
+
+			parser := gonx.NewParser(`$http_referer`)
+			entry, _ := parser.ParseString(tt.referer)
+
+			row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+			if len(row) != 1 {
+				t.Fatalf("expected 1 field, got %d", len(row))
+			}
+			if row[0] != tt.expected {
+				t.Errorf("expected %q, got %v", tt.expected, row[0])
+			}
+		})
+	}
+}
+
+func TestBuildRowURLExtension(t *testing.T) {
+	tests := []struct {
+		name     string
+		request  string
+		expected string
+	}{
+		{"html", "GET /index.html HTTP/1.1", "html"},
+		{"js with query", "GET /app.js?v=123 HTTP/1.1", "js"},
+		{"css with fragment", "GET /style.css#section HTTP/1.1", "css"},
+		{"no extension", "GET /api/users HTTP/1.1", ""},
+		{"root", "GET / HTTP/1.1", ""},
+		{"image", "GET /logo.png HTTP/2.0", "png"},
+		{"dotfile", "GET /.env HTTP/1.1", "env"},
+		{"empty", "", ""},
+		{"method only", "GET", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			columns := map[string]string{"Ext": "_url_extension"}
+			keys := []string{"Ext"}
+
+			parser := gonx.NewParser(`"$request"`)
+			input := `"` + tt.request + `"`
+			if tt.request == "" {
+				input = `""`
+			}
+			entry, _ := parser.ParseString(input)
+
+			row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+			if len(row) != 1 {
+				t.Fatalf("expected 1 field, got %d", len(row))
+			}
+			if row[0] != tt.expected {
+				t.Errorf("expected %q, got %v", tt.expected, row[0])
+			}
+		})
+	}
+}
+
+func TestBuildRowIsBot(t *testing.T) {
+	tests := []struct {
+		name     string
+		ua       string
+		expected string
+	}{
+		{"googlebot", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "1"},
+		{"bingbot", "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)", "1"},
+		{"curl", "curl/7.68.0", "1"},
+		{"wget", "Wget/1.20.3", "1"},
+		{"chrome", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "0"},
+		{"firefox", "Mozilla/5.0 (Windows NT 10.0; rv:121.0) Gecko/20100101 Firefox/121.0", "0"},
+		{"empty", "", "0"},
+		{"dash", "-", "0"},
+		{"ahrefsbot", "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)", "1"},
+		{"gptbot", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.0; +https://openai.com/gptbot)", "1"},
+		{"claudebot", "ClaudeBot/1.0", "1"},
+		{"semrush", "Mozilla/5.0 (compatible; SemrushBot/7; +http://www.semrush.com/bot.html)", "1"},
+		{"facebookbot", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)", "1"},
+		{"whatsapp", "WhatsApp/2.23.20.0", "1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			columns := map[string]string{"Bot": "_is_bot"}
+			keys := []string{"Bot"}
+
+			parser := gonx.NewParser(`"$http_user_agent"`)
+			input := `"` + tt.ua + `"`
+			if tt.ua == "" {
+				input = `""`
+			}
+			entry, _ := parser.ParseString(input)
+
+			row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+			if len(row) != 1 {
+				t.Fatalf("expected 1 field, got %d", len(row))
+			}
+			if row[0] != tt.expected {
+				t.Errorf("expected %q, got %v", tt.expected, row[0])
+			}
+		})
+	}
+}
+
+func TestBuildRowBotNameAndClass(t *testing.T) {
+	columns := map[string]string{
+		"BotName":  "_bot_name",
+		"BotClass": "_bot_class",
+	}
+	keys := []string{"BotClass", "BotName"}
+
+	parser := gonx.NewParser(`"$http_user_agent"`)
+	entry, _ := parser.ParseString(`"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"`)
+
+	row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+	if len(row) != 2 {
+		t.Fatalf("expected 2 fields, got %d", len(row))
+	}
+	if row[0] == "" {
+		t.Error("expected non-empty bot class for Googlebot")
+	}
+	if row[1] == "" {
+		t.Error("expected non-empty bot name for Googlebot")
+	}
+}
+
+func TestBuildRowBrowserAndOS(t *testing.T) {
+	columns := map[string]string{
+		"Browser":        "_browser",
+		"BrowserVersion": "_browser_version",
+		"OS":             "_os",
+		"DeviceType":     "_device_type",
+	}
+	keys := []string{"Browser", "BrowserVersion", "DeviceType", "OS"}
+
+	parser := gonx.NewParser(`"$http_user_agent"`)
+	entry, _ := parser.ParseString(`"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`)
+
+	row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+	if len(row) != 4 {
+		t.Fatalf("expected 4 fields, got %d", len(row))
+	}
+
+	browser, _ := row[0].(string)
+	version, _ := row[1].(string)
+	deviceType, _ := row[2].(string)
+	os, _ := row[3].(string)
+
+	if browser == "" {
+		t.Error("expected non-empty browser name")
+	}
+	if version == "" {
+		t.Error("expected non-empty browser version")
+	}
+	if deviceType == "" {
+		t.Error("expected non-empty device type")
+	}
+	if os == "" {
+		t.Error("expected non-empty OS name")
+	}
+}
+
+func TestBuildRowUAFieldsEmpty(t *testing.T) {
+	columns := map[string]string{
+		"Bot":     "_is_bot",
+		"Browser": "_browser",
+	}
+	keys := []string{"Bot", "Browser"}
+
+	parser := gonx.NewParser(`"$http_user_agent"`)
+	entry, _ := parser.ParseString(`""`)
+
+	row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+	if row[0] != "0" {
+		t.Errorf("expected is_bot=0 for empty UA, got %v", row[0])
+	}
+	if row[1] != "" {
+		t.Errorf("expected empty browser for empty UA, got %v", row[1])
+	}
+}
+
 func TestBuildRowAllEnrichments(t *testing.T) {
 	columns := map[string]string{
 		"Hostname":    "_hostname",
