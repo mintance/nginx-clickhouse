@@ -20,6 +20,8 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	uax "github.com/motiv8-team/go-ua-parser"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 
 	"github.com/mintance/nginx-clickhouse/config"
@@ -27,24 +29,71 @@ import (
 	"github.com/mintance/nginx-clickhouse/retry"
 )
 
+var (
+	uaParseDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "nginx_clickhouse_ua_parse_duration_seconds",
+		Help:    "Time spent parsing a user-agent string (cache misses only)",
+		Buckets: []float64{0.000001, 0.000005, 0.00001, 0.00005, 0.0001, 0.0005, 0.001},
+	})
+	uaBotTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_ua_bot_total",
+		Help: "Total user-agent strings detected as bots",
+	})
+	uaCacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_ua_cache_hits_total",
+		Help: "Total UA parser cache hits",
+	})
+	uaCacheMisses = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nginx_clickhouse_ua_cache_misses_total",
+		Help: "Total UA parser cache misses",
+	})
+)
+
 // uaParser is the shared, cached user-agent parser instance, initialized
 // lazily on first use. This avoids allocating memory for the 313+ bot
 // signatures when no UA enrichment fields are configured.
 var (
-	uaParser     *uax.ShardedCache
-	uaParserOnce sync.Once
+	uaParser      *uax.ShardedCache
+	uaParserOnce  sync.Once
+	uaLastStats   uax.CacheStats
+	uaLastStatsMu sync.Mutex
 )
 
 // getUAParser returns the shared UA parser, initializing it on first call.
 func getUAParser() *uax.ShardedCache {
 	uaParserOnce.Do(func() {
-		p, err := uax.NewParser()
+		p, err := uax.NewParser(
+			uax.WithPostParseHook(func(_ uax.Input, result uax.Result, d time.Duration) {
+				uaParseDuration.Observe(d.Seconds())
+				if result.IsBot {
+					uaBotTotal.Inc()
+				}
+			}),
+		)
 		if err != nil {
 			logrus.WithError(err).Fatal("initialize UA parser")
 		}
 		uaParser = uax.NewShardedCache(p, 16, 256)
 	})
 	return uaParser
+}
+
+// updateUACacheMetrics syncs the sharded cache stats to Prometheus counters.
+// Called after each batch to avoid per-parse lock overhead.
+func updateUACacheMetrics() {
+	if uaParser == nil {
+		return
+	}
+	stats := uaParser.Stats()
+	uaLastStatsMu.Lock()
+	if delta := stats.Hits - uaLastStats.Hits; delta > 0 {
+		uaCacheHits.Add(float64(delta))
+	}
+	if delta := stats.Misses - uaLastStats.Misses; delta > 0 {
+		uaCacheMisses.Add(float64(delta))
+	}
+	uaLastStats = stats
+	uaLastStatsMu.Unlock()
 }
 
 // Client manages the ClickHouse connection with automatic reconnection
@@ -129,6 +178,7 @@ func (c *Client) Save(entries []nginx.LogEntry) error {
 			c.resetConn()
 			return fmt.Errorf("send batch: %w", err)
 		}
+		updateUACacheMetrics()
 		return nil
 	})
 }

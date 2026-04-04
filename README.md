@@ -313,6 +313,10 @@ Available at `http://localhost:2112/metrics`:
 | `nginx_clickhouse_batch_size` | Number of entries per flush (histogram) |
 | `nginx_clickhouse_circuit_breaker_state` | Circuit breaker state (0=closed, 1=open, 2=half-open) |
 | `nginx_clickhouse_circuit_breaker_rejections_total` | Flushes rejected by circuit breaker |
+| `nginx_clickhouse_ua_parse_duration_seconds` | Time spent parsing a user-agent string (histogram, cache misses only) |
+| `nginx_clickhouse_ua_bot_total` | Total user-agent strings detected as bots |
+| `nginx_clickhouse_ua_cache_hits_total` | UA parser cache hits |
+| `nginx_clickhouse_ua_cache_misses_total` | UA parser cache misses |
 
 ## Reliability
 
