@@ -402,6 +402,83 @@ func TestBuildRowIsBot(t *testing.T) {
 	}
 }
 
+func TestBuildRowBotNameAndClass(t *testing.T) {
+	columns := map[string]string{
+		"BotName":  "_bot_name",
+		"BotClass": "_bot_class",
+	}
+	keys := []string{"BotClass", "BotName"}
+
+	parser := gonx.NewParser(`"$http_user_agent"`)
+	entry, _ := parser.ParseString(`"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"`)
+
+	row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+	if len(row) != 2 {
+		t.Fatalf("expected 2 fields, got %d", len(row))
+	}
+	if row[0] == "" {
+		t.Error("expected non-empty bot class for Googlebot")
+	}
+	if row[1] == "" {
+		t.Error("expected non-empty bot name for Googlebot")
+	}
+}
+
+func TestBuildRowBrowserAndOS(t *testing.T) {
+	columns := map[string]string{
+		"Browser":        "_browser",
+		"BrowserVersion": "_browser_version",
+		"OS":             "_os",
+		"DeviceType":     "_device_type",
+	}
+	keys := []string{"Browser", "BrowserVersion", "DeviceType", "OS"}
+
+	parser := gonx.NewParser(`"$http_user_agent"`)
+	entry, _ := parser.ParseString(`"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`)
+
+	row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+	if len(row) != 4 {
+		t.Fatalf("expected 4 fields, got %d", len(row))
+	}
+
+	browser, _ := row[0].(string)
+	version, _ := row[1].(string)
+	deviceType, _ := row[2].(string)
+	os, _ := row[3].(string)
+
+	if browser == "" {
+		t.Error("expected non-empty browser name")
+	}
+	if version == "" {
+		t.Error("expected non-empty browser version")
+	}
+	if deviceType == "" {
+		t.Error("expected non-empty device type")
+	}
+	if os == "" {
+		t.Error("expected non-empty OS name")
+	}
+}
+
+func TestBuildRowUAFieldsEmpty(t *testing.T) {
+	columns := map[string]string{
+		"Bot":     "_is_bot",
+		"Browser": "_browser",
+	}
+	keys := []string{"Bot", "Browser"}
+
+	parser := gonx.NewParser(`"$http_user_agent"`)
+	entry, _ := parser.ParseString(`""`)
+
+	row := buildRow(keys, columns, entry, &config.EnrichmentConfig{})
+	if row[0] != "0" {
+		t.Errorf("expected is_bot=0 for empty UA, got %v", row[0])
+	}
+	if row[1] != "" {
+		t.Errorf("expected empty browser for empty UA, got %v", row[1])
+	}
+}
+
 func TestBuildRowAllEnrichments(t *testing.T) {
 	columns := map[string]string{
 		"Hostname":    "_hostname",

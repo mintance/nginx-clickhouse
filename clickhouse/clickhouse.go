@@ -19,12 +19,16 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	uax "github.com/motiv8-team/go-ua-parser"
 	"github.com/sirupsen/logrus"
 
 	"github.com/mintance/nginx-clickhouse/config"
 	"github.com/mintance/nginx-clickhouse/nginx"
 	"github.com/mintance/nginx-clickhouse/retry"
 )
+
+// uaParser is the shared user-agent parser instance.
+var uaParser, _ = uax.NewParser()
 
 // Client manages the ClickHouse connection with automatic reconnection
 // and retry logic.
@@ -237,7 +241,13 @@ func buildRow(keys []string, columns map[string]string, entry nginx.LogEntry, en
 //   - _status_class: derived from the entry's "status" field (e.g. "200" -> "2xx")
 //   - _referrer_domain: domain extracted from the entry's "http_referer" field
 //   - _url_extension: file extension extracted from the request URL (e.g. "html", "js")
-//   - _is_bot: "1" if the user agent looks like a bot/crawler, "0" otherwise
+//   - _is_bot: "1" if the user agent is a bot/crawler, "0" otherwise
+//   - _bot_name: name of the detected bot (e.g. "Googlebot"), empty if not a bot
+//   - _bot_class: bot category (e.g. "search", "social", "ai", "seo-tool", "monitor", "scraper")
+//   - _browser: browser name (e.g. "Chrome", "Firefox", "Safari")
+//   - _browser_version: browser major version (e.g. "120")
+//   - _os: operating system name (e.g. "Windows", "Linux", "macOS")
+//   - _device_type: device class (e.g. "desktop", "mobile", "tablet")
 //   - _extra.<key>: from EnrichmentConfig.Extra map
 func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentConfig) any {
 	switch field {
@@ -261,7 +271,29 @@ func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentC
 	case "_url_extension":
 		return extractURLExtension(entry)
 	case "_is_bot":
-		return detectBot(entry)
+		r := parseUA(entry)
+		if r.IsBot {
+			return "1"
+		}
+		return "0"
+	case "_bot_name":
+		r := parseUA(entry)
+		return r.Bot.Name
+	case "_bot_class":
+		r := parseUA(entry)
+		return string(r.Bot.Class)
+	case "_browser":
+		r := parseUA(entry)
+		return r.Browser.Name
+	case "_browser_version":
+		r := parseUA(entry)
+		return r.Browser.Major
+	case "_os":
+		r := parseUA(entry)
+		return r.OS.Name
+	case "_device_type":
+		r := parseUA(entry)
+		return r.DeviceClass()
 	default:
 		if strings.HasPrefix(field, "_extra.") {
 			key := strings.TrimPrefix(field, "_extra.")
@@ -272,6 +304,15 @@ func resolveEnrichment(field string, entry nginx.LogEntry, e *config.EnrichmentC
 		}
 		return ""
 	}
+}
+
+// parseUA parses the http_user_agent field using the UA parser.
+func parseUA(entry nginx.LogEntry) uax.Result {
+	ua, err := entry.Field("http_user_agent")
+	if err != nil || ua == "" || ua == "-" {
+		return uax.Result{}
+	}
+	return uaParser.ParseString(ua)
 }
 
 // extractReferrerDomain parses the http_referer field and returns its hostname.
@@ -311,32 +352,4 @@ func extractURLExtension(entry nginx.LogEntry) string {
 		return ""
 	}
 	return ext[1:] // strip leading dot
-}
-
-// botPatterns contains lowercase substrings commonly found in bot/crawler
-// user-agent strings.
-var botPatterns = []string{
-	"bot", "crawl", "spider", "slurp", "wget", "curl",
-	"mediapartners", "feedfetcher", "lighthouse", "pingdom",
-	"uptimerobot", "headlesschrome", "phantomjs", "httrack",
-	"ahrefsbot", "semrushbot", "dotbot", "mj12bot", "baiduspider",
-	"yandexbot", "duckduckbot", "facebookexternalhit", "twitterbot",
-	"linkedinbot", "whatsapp", "telegrambot", "discordbot",
-	"applebot", "petalbot", "bytespider", "gptbot", "claudebot",
-}
-
-// detectBot checks if the http_user_agent field matches known bot patterns.
-// Returns "1" for bots, "0" for non-bots.
-func detectBot(entry nginx.LogEntry) string {
-	ua, err := entry.Field("http_user_agent")
-	if err != nil || ua == "" || ua == "-" {
-		return "0"
-	}
-	lower := strings.ToLower(ua)
-	for _, pattern := range botPatterns {
-		if strings.Contains(lower, pattern) {
-			return "1"
-		}
-	}
-	return "0"
 }

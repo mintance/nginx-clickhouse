@@ -64,6 +64,12 @@ clickhouse:
    # RefererDomain: _referrer_domain  # enrichment: domain extracted from http_referer
    # UrlExtension: _url_extension    # enrichment: file extension from request URL (.html → "html")
    # IsBot: _is_bot                  # enrichment: "1" if user agent is a bot/crawler, "0" otherwise
+   # BotName: _bot_name              # enrichment: bot name (e.g. "Googlebot"), empty if not a bot
+   # BotClass: _bot_class            # enrichment: bot category (search, social, ai, seo-tool, monitor, scraper)
+   # Browser: _browser               # enrichment: browser name (e.g. "Chrome", "Firefox")
+   # BrowserVersion: _browser_version # enrichment: browser major version (e.g. "120")
+   # OS: _os                         # enrichment: operating system (e.g. "Windows", "Linux", "macOS")
+   # DeviceType: _device_type        # enrichment: device class (desktop, mobile, tablet)
    # PodNamespace: _extra.pod_namespace  # enrichment: from ENRICHMENT_POD_NAMESPACE
    # NodeName: _extra.node_name          # enrichment: from ENRICHMENT_NODE_NAME
 
