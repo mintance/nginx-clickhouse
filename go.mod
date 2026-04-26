@@ -3,9 +3,9 @@ module github.com/mintance/nginx-clickhouse
 go 1.26.1
 
 require (
-	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.45.0
 	github.com/expr-lang/expr v1.17.8
-	github.com/motiv8-team/go-ua-parser v0.2.0
+	github.com/motiv8-team/go-ua-parser v0.2.2
 	github.com/papertrail/go-tail v0.0.0-20221103124010-5087eb6a0a07
 	github.com/prometheus/client_golang v1.23.2
 	github.com/satyrius/gonx v1.4.0
@@ -32,8 +32,8 @@ require (
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/smartystreets/goconvey v1.7.2 // indirect
-	go.opentelemetry.io/otel v1.39.0 // indirect
-	go.opentelemetry.io/otel/trace v1.39.0 // indirect
+	go.opentelemetry.io/otel v1.41.0 // indirect
+	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/sys v0.42.0 // indirect
