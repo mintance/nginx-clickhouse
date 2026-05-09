@@ -192,6 +192,7 @@ clickhouse:
     Request: request
     Status: status
     BytesSent: bytes_sent
+    RequestTime: request_time
     HttpReferer: http_referer
     HttpUserAgent: http_user_agent
     # RefererDomain: _referrer_domain   # enrichment: domain from http_referer
@@ -204,7 +205,7 @@ clickhouse:
 nginx:
   log_type: main
   log_format_type: text        # "text" (default) or "json"
-  log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"'
+  log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent" $request_time'
 ```
 
 ## NGINX Setup
@@ -215,7 +216,7 @@ In `/etc/nginx/nginx.conf`:
 
 ```nginx
 http {
-    log_format main '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent"';
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent" $request_time';
 }
 ```
 
@@ -274,6 +275,7 @@ CREATE TABLE metrics.nginx (
     Request       String      CODEC(ZSTD(1)),
     Status        UInt16,
     BytesSent     UInt64      CODEC(Delta(4), ZSTD(1)),
+    RequestTime   Float32     CODEC(Gorilla, ZSTD(1)),    -- Gorilla codec on slowly-varying floats
     HttpReferer   String      CODEC(ZSTD(1)),
     HttpUserAgent String      CODEC(ZSTD(1)),
     Hostname      LowCardinality(String),                 -- few distinct values
