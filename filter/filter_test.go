@@ -438,3 +438,76 @@ func TestUnknownFieldAsString(t *testing.T) {
 		t.Fatalf("expected 1 entry, got %d", len(result))
 	}
 }
+
+func TestExplain(t *testing.T) {
+	rules := []config.FilterRule{
+		{Expr: `request contains "/health"`, Action: "drop"},
+		{Expr: "status >= 200 && status < 300", Action: "drop", SampleRate: 0.9},
+		{Expr: "status >= 500", Action: "keep"},
+	}
+	chain, err := NewChain(rules, []string{"status", "request"})
+	if err != nil {
+		t.Fatalf("NewChain: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		fields  map[string]string
+		kept    bool
+		rule    int
+		sampled []int
+	}{
+		{"drop rule", map[string]string{"status": "500", "request": "GET /health HTTP/1.1"}, false, 0, nil},
+		{"sampled drop rule", map[string]string{"status": "200", "request": "GET / HTTP/1.1"}, false, 1, []int{1}},
+		{"keep rule non-match", map[string]string{"status": "404", "request": "GET / HTTP/1.1"}, false, 2, nil},
+		{"kept by all", map[string]string{"status": "502", "request": "GET / HTTP/1.1"}, true, -1, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := chain.Explain(&testEntry{fields: tt.fields})
+			if d.Kept != tt.kept || d.Rule != tt.rule {
+				t.Errorf("got kept=%v rule=%d, want kept=%v rule=%d", d.Kept, d.Rule, tt.kept, tt.rule)
+			}
+			if !tt.kept && d.Expr != rules[tt.rule].Expr {
+				t.Errorf("got expr %q, want %q", d.Expr, rules[tt.rule].Expr)
+			}
+			if fmt.Sprint(d.Sampled) != fmt.Sprint(tt.sampled) {
+				t.Errorf("got sampled %v, want %v", d.Sampled, tt.sampled)
+			}
+		})
+	}
+}
+
+func TestExplainMatchesApply(t *testing.T) {
+	rules := []config.FilterRule{
+		{Expr: "status >= 400", Action: "keep"},
+		{Expr: `request contains "/static"`, Action: "drop"},
+	}
+	chain, err := NewChain(rules, []string{"status", "request"})
+	if err != nil {
+		t.Fatalf("NewChain: %v", err)
+	}
+
+	for _, fields := range []map[string]string{
+		{"status": "200", "request": "GET / HTTP/1.1"},
+		{"status": "404", "request": "GET /static/a.css HTTP/1.1"},
+		{"status": "500", "request": "GET /api HTTP/1.1"},
+	} {
+		entry := &testEntry{fields: fields}
+		kept := len(chain.Apply([]nginx.LogEntry{entry})) == 1
+		if d := chain.Explain(entry); d.Kept != kept {
+			t.Errorf("%v: Explain kept=%v, Apply kept=%v", fields, d.Kept, kept)
+		}
+	}
+}
+
+func TestExplainEmptyChain(t *testing.T) {
+	chain, err := NewChain(nil, nil)
+	if err != nil {
+		t.Fatalf("NewChain: %v", err)
+	}
+	d := chain.Explain(&testEntry{fields: map[string]string{}})
+	if !d.Kept || d.Rule != -1 {
+		t.Errorf("got kept=%v rule=%d, want kept=true rule=-1", d.Kept, d.Rule)
+	}
+}

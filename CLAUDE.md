@@ -7,7 +7,7 @@ nginx-clickhouse is a Go microservice that tails NGINX access logs and batch-ins
 ## Architecture
 
 ```
-main.go                    → Entry point: tail, buffer, flush loop, graceful shutdown, /healthz
+main.go                    → Entry point: tail, buffer, flush loop, graceful shutdown, /healthz, -check, -parse (offline line preview)
 config/config.go           → YAML config + env var overrides (structured types)
 nginx/nginx.go             → Parses NGINX log lines using gonx (configurable log format)
 nginx/json.go              → Parses NGINX JSON access logs (log_format escape=json) and applies enrichments
@@ -84,11 +84,11 @@ CI will reject PRs that fail any of these checks.
 ## Testing
 
 ```bash
-go test ./... -v -race              # 118 unit tests across 8 packages
+go test ./... -v -race              # 126 unit tests across 8 packages
 go test ./clickhouse/ -v -tags integration  # Integration tests (requires ClickHouse)
 ```
 
-Packages with tests: main (5), retry (7), buffer (10), circuitbreaker (5), clickhouse (21 unit + 12 integration), config (30), filter (22), nginx (18).
+Packages with tests: main (7), retry (7), buffer (10), circuitbreaker (5), clickhouse (22 unit + 12 integration), config (30), filter (25), nginx (20).
 
 ## CI/CD
 

@@ -27,6 +27,7 @@ Simple NGINX access log parser and transporter to ClickHouse database. Uses the 
 - **Circuit breaker** to fast-fail when ClickHouse is persistently down
 - **Bulk loading** (`-once`) — read an entire log file and exit
 - **Stdin support** (`-stdin`) — pipe or stream logs from other tools
+- **Parse preview** (`-parse`) — see exactly what each log line becomes, offline, before deploying a config
 - **Graceful shutdown** — flushes buffer on SIGTERM/SIGINT or EOF
 - `/healthz` endpoint for Kubernetes liveness/readiness probes
 - Prometheus metrics: buffer size, flush latency, parse errors, circuit breaker state
@@ -617,6 +618,37 @@ All checks passed.
 ```
 
 Validates: config syntax, log file existence, ClickHouse connectivity, database/table existence, and column mapping against the actual table schema. Exits with code 1 if any check fails.
+
+## Parse Preview (`-parse`)
+
+`-check` confirms the config loads. `-parse` shows what it does to real lines. It reads log lines from stdin and prints one JSON object per line with the raw parsed fields, the exact values each ClickHouse column would receive (enrichments included), the mapped fields missing from the line, and which filter rule (if any) drops it. Nothing is sent to ClickHouse, and no connection is needed.
+
+```sh
+tail -n 20 /var/log/nginx/access.log | ./nginx-clickhouse -config_path=config/config.yml -parse
+```
+
+Output (one line per log entry, formatted here for readability):
+```json
+{
+  "line": 1,
+  "fields": {"remote_addr": "66.249.66.1", "request": "GET /health HTTP/1.1", "status": "200", "request_time": "0.001", "...": "..."},
+  "columns": {"RemoteAddr": "66.249.66.1", "Status": 200, "StatusClass": "2xx", "IsBot": "1", "BotName": "Googlebot", "TimeLocal": "2026-11-03 10:00:00", "Upstream": ""},
+  "missing": ["upstream_response_time"],
+  "filter": {"kept": false, "rule": 0, "expr": "request contains \"/health\""}
+}
+```
+
+- `error` (with `raw`) appears instead when a line doesn't match `log_format` or isn't valid JSON.
+- `missing` lists mapped source fields the line doesn't contain. Those columns would be inserted as `""`, which usually means `log_format` and `columns` disagree.
+- `filter` appears when filters are configured. `rule` is the index of the dropping rule (`-1` = kept). Sampled rules are assumed to apply their action, and their indices are listed in `sampled`, since the real outcome is random.
+
+Exits with code 1 if any line failed to parse or had missing fields, so it can also gate config changes in CI. Pipe through `jq` to dig in, e.g. `... -parse | jq 'select(.filter.kept == false)'`.
+
+## Querying with AI Assistants
+
+nginx-clickhouse only writes. To let Claude or another MCP-capable assistant answer questions about your traffic, connect it to ClickHouse with the official [ClickHouse MCP server](https://github.com/ClickHouse/mcp-clickhouse) using a read-only user. The MCP server uses ClickHouse's HTTP port (`8123`/`8443`), not the native `9000` used for ingestion.
+
+See **[docs/querying-with-ai.md](docs/querying-with-ai.md)** for the read-only user setup, Claude Code / Claude Desktop config, a schema notes block to paste into your assistant's instructions, and example queries (error rates, p95 latency by endpoint, bot and AI-crawler traffic, referrers).
 
 ## Contributing
 

@@ -283,21 +283,47 @@ func buildRow(keys []string, columns map[string]string, entry nginx.LogEntry, en
 	row := make([]any, 0, len(keys))
 	for _, col := range keys {
 		field := columns[col]
-
-		if strings.HasPrefix(field, "_") {
-			row = append(row, resolveEnrichment(field, entry, enrichments))
-			continue
-		}
-
-		value, err := entry.Field(field)
+		value, err := columnValue(field, entry, enrichments)
 		if err != nil {
 			logrus.WithField("field", field).WithError(err).Error("read field")
-			row = append(row, "")
-			continue
 		}
-		row = append(row, nginx.ParseField(field, value))
+		row = append(row, value)
 	}
 	return row
+}
+
+// columnValue resolves the value inserted for a column mapped to field.
+// Fields prefixed with "_" are enrichments; other fields are read from the
+// entry and converted with [nginx.ParseField]. A field missing from the entry
+// yields "" and a non-nil error.
+func columnValue(field string, entry nginx.LogEntry, enrichments *config.EnrichmentConfig) (any, error) {
+	if strings.HasPrefix(field, "_") {
+		return resolveEnrichment(field, entry, enrichments), nil
+	}
+
+	value, err := entry.Field(field)
+	if err != nil {
+		return "", err
+	}
+	return nginx.ParseField(field, value), nil
+}
+
+// Preview returns the values Save would insert for entry, keyed by
+// ClickHouse column name, without connecting to ClickHouse. It also returns
+// the sorted names of mapped log fields absent from the entry; Save inserts
+// "" for those.
+func Preview(cfg *config.Config, entry nginx.LogEntry) (map[string]any, []string) {
+	row := make(map[string]any, len(cfg.ClickHouse.Columns))
+	var missing []string
+	for col, field := range cfg.ClickHouse.Columns {
+		value, err := columnValue(field, entry, &cfg.Settings.Enrichments)
+		if err != nil {
+			missing = append(missing, field)
+		}
+		row[col] = value
+	}
+	slices.Sort(missing)
+	return row, slices.Compact(missing)
 }
 
 // resolveEnrichment returns the value for a special "_" prefixed field name.
