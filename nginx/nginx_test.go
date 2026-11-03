@@ -187,3 +187,45 @@ func TestParseLogsEmpty(t *testing.T) {
 		t.Errorf("expected 0 entries for empty input, got %d", len(entries))
 	}
 }
+
+func TestParseLineText(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Nginx.LogType = "main"
+	cfg.Nginx.LogFormat = `$remote_addr "$request" $status`
+	parser, err := NewParser(cfg)
+	if err != nil {
+		t.Fatalf("NewParser: %v", err)
+	}
+
+	entry, err := ParseLine(parser, `10.0.0.1 "GET / HTTP/1.1" 200`)
+	if err != nil {
+		t.Fatalf("ParseLine: %v", err)
+	}
+	fields := EntryFields(entry)
+	if fields["remote_addr"] != "10.0.0.1" || fields["status"] != "200" {
+		t.Errorf("unexpected fields: %v", fields)
+	}
+
+	if _, err := ParseLine(parser, "not a log line"); err == nil {
+		t.Error("expected error for non-matching line")
+	}
+}
+
+func TestParseLineJSON(t *testing.T) {
+	entry, err := ParseLine(nil, `{"remote_addr":"10.0.0.1","status":200}`)
+	if err != nil {
+		t.Fatalf("ParseLine: %v", err)
+	}
+	fields := EntryFields(entry)
+	if fields["remote_addr"] != "10.0.0.1" || fields["status"] != "200" {
+		t.Errorf("unexpected fields: %v", fields)
+	}
+
+	entry, err = ParseLine(nil, "{bad")
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+	if entry != nil {
+		t.Errorf("expected nil entry on error, got %#v", entry)
+	}
+}

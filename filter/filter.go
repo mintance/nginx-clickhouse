@@ -104,16 +104,9 @@ func (c *Chain) Apply(entries []nginx.LogEntry) []nginx.LogEntry {
 func applyRule(rule compiledRule, entries []nginx.LogEntry, fields []string) []nginx.LogEntry {
 	kept := make([]nginx.LogEntry, 0, len(entries))
 	for _, entry := range entries {
-		env := buildEnv(entry, fields)
-		output, err := expr.Run(rule.program, env)
+		matched, err := rule.match(buildEnv(entry, fields))
 		if err != nil {
 			logrus.WithError(err).WithField("expr", rule.raw).Warn("filter expression error, keeping entry")
-			kept = append(kept, entry)
-			continue
-		}
-
-		matched, ok := output.(bool)
-		if !ok {
 			kept = append(kept, entry)
 			continue
 		}
@@ -145,6 +138,65 @@ func applyRule(rule compiledRule, entries []nginx.LogEntry, fields []string) []n
 		// "drop" action: entry is not added to kept.
 	}
 	return kept
+}
+
+// match evaluates the rule's expression against env.
+func (r compiledRule) match(env map[string]any) (bool, error) {
+	output, err := expr.Run(r.program, env)
+	if err != nil {
+		return false, err
+	}
+	matched, ok := output.(bool)
+	if !ok {
+		return false, fmt.Errorf("expression returned %T, want bool", output)
+	}
+	return matched, nil
+}
+
+// Decision describes how a Chain treats a single entry. It is deterministic:
+// a matching rule with a sample_rate is assumed to apply its action, and the
+// rule is listed in Sampled because the real outcome is random.
+type Decision struct {
+	// Kept reports whether the entry survives the chain.
+	Kept bool `json:"kept"`
+	// Rule is the index of the rule that dropped the entry, or -1 if kept.
+	Rule int `json:"rule"`
+	// Expr is the expression of the dropping rule, empty if kept.
+	Expr string `json:"expr,omitempty"`
+	// Sampled lists indices of matching rules that have a sample_rate.
+	Sampled []int `json:"sampled,omitempty"`
+	// Errors lists expression errors; erroring rules keep the entry, as in Apply.
+	Errors []string `json:"errors,omitempty"`
+}
+
+// Explain reports how the chain treats entry without dropping anything. Rules
+// are evaluated in order, matching the semantics of Apply.
+func (c *Chain) Explain(entry nginx.LogEntry) Decision {
+	d := Decision{Kept: true, Rule: -1}
+	if len(c.rules) == 0 {
+		return d
+	}
+
+	env := buildEnv(entry, c.fields)
+	for i, rule := range c.rules {
+		matched, err := rule.match(env)
+		if err != nil {
+			d.Errors = append(d.Errors, fmt.Sprintf("rule %d (%s): %v", i, rule.raw, err))
+			continue
+		}
+		if matched && rule.sampleRate > 0 && rule.sampleRate < 1 {
+			d.Sampled = append(d.Sampled, i)
+		}
+
+		// "drop" removes matches; "keep" removes non-matches.
+		if matched == (rule.action == "drop") {
+			d.Kept = false
+			d.Rule = i
+			d.Expr = rule.raw
+			return d
+		}
+	}
+	return d
 }
 
 // buildEnvSample creates a sample environment map with zero values of the

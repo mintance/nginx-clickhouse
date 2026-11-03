@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -35,12 +36,14 @@ var (
 	checkMode bool
 	onceMode  bool
 	stdinMode bool
+	parseMode bool
 )
 
 func init() {
 	flag.BoolVar(&checkMode, "check", false, "Validate config and ClickHouse connectivity, then exit.")
 	flag.BoolVar(&onceMode, "once", false, "Read the log file from start to end, flush, and exit.")
 	flag.BoolVar(&stdinMode, "stdin", false, "Read log lines from stdin instead of a file.")
+	flag.BoolVar(&parseMode, "parse", false, "Parse log lines from stdin, print fields, column values, and filter decisions as JSON, then exit. Does not connect to ClickHouse.")
 }
 
 var (
@@ -142,6 +145,13 @@ func main() {
 			logrus.Fatal("invalid filter rules: ", err)
 		}
 		logrus.WithField("rules", len(cfg.Settings.Filters)).Info("filter rules compiled")
+	}
+
+	if parseMode {
+		if !runParse(cfg, parser, filterChain, os.Stdin, os.Stdout) {
+			os.Exit(1)
+		}
+		return
 	}
 
 	if cfg.ClickHouse.UseServerSideBatching {
@@ -514,4 +524,62 @@ func runCheck(cfg *configParser.Config, parser *nginx.Parser, client *clickhouse
 		fmt.Println("\nSome checks failed.")
 		os.Exit(1)
 	}
+}
+
+// parseResult is the -parse output for a single log line.
+type parseResult struct {
+	Line    int               `json:"line"`
+	Raw     string            `json:"raw,omitempty"`
+	Error   string            `json:"error,omitempty"`
+	Fields  map[string]string `json:"fields,omitempty"`
+	Columns map[string]any    `json:"columns,omitempty"`
+	Missing []string          `json:"missing,omitempty"`
+	Filter  *filter.Decision  `json:"filter,omitempty"`
+}
+
+// runParse reads log lines from r and writes one JSON object per non-empty
+// line to w, describing the parsed fields, the column values that would be
+// inserted, mapped fields missing from the line, and the filter decision.
+// It reports false if any line failed to parse or had missing fields.
+func runParse(cfg *configParser.Config, parser *nginx.Parser, fc *filter.Chain, r io.Reader, w io.Writer) bool {
+	allOK := true
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // max 1MB per line
+	for n := 1; scanner.Scan(); n++ {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		res := parseResult{Line: n}
+		entry, err := nginx.ParseLine(parser, line)
+		if err != nil {
+			res.Raw = line
+			res.Error = err.Error()
+			allOK = false
+		} else {
+			res.Fields = nginx.EntryFields(entry)
+			res.Columns, res.Missing = clickhouse.Preview(cfg, entry)
+			if len(res.Missing) > 0 {
+				allOK = false
+			}
+			if fc != nil {
+				d := fc.Explain(entry)
+				res.Filter = &d
+			}
+		}
+
+		if err := enc.Encode(res); err != nil {
+			logrus.WithError(err).Error("write parse result")
+			return false
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		logrus.WithError(err).Error("error reading input")
+		return false
+	}
+	return allOK
 }

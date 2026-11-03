@@ -100,3 +100,35 @@ func ParseLogs(parser *Parser, logLines []string) []LogEntry {
 
 	return entries
 }
+
+// ParseLine parses a single raw NGINX log line. A nil parser means the line
+// is parsed as JSON (log_format escape=json); otherwise the text format of
+// parser is used.
+func ParseLine(parser *Parser, line string) (LogEntry, error) {
+	if parser == nil {
+		entry, err := ParseJSONLine(line)
+		if err != nil {
+			return nil, err
+		}
+		return entry, nil
+	}
+
+	entry, err := parser.ParseString(line)
+	if err != nil {
+		return nil, err
+	}
+	return entry, nil
+}
+
+// EntryFields returns all raw fields of entry, or nil if the entry type does
+// not expose its fields.
+func EntryFields(entry LogEntry) map[string]string {
+	switch e := entry.(type) {
+	case *gonx.Entry:
+		return e.Fields()
+	case *JSONEntry:
+		return e.Fields()
+	default:
+		return nil
+	}
+}

@@ -514,3 +514,41 @@ func TestBuildRowAllEnrichments(t *testing.T) {
 		}
 	}
 }
+
+func TestPreview(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.ClickHouse.Columns = map[string]string{
+		"RemoteAddr":  "remote_addr",
+		"Status":      "status",
+		"StatusClass": "_status_class",
+		"Hostname":    "_hostname",
+		"Upstream":    "upstream_response_time",
+		"Upstream2":   "upstream_response_time",
+	}
+	cfg.Settings.Enrichments.Hostname = "web-1"
+
+	parser := gonx.NewParser(`$remote_addr $status`)
+	entry, err := parser.ParseString(`192.168.1.1 404`)
+	if err != nil {
+		t.Fatalf("ParseString: %v", err)
+	}
+
+	row, missing := Preview(cfg, entry)
+
+	want := map[string]any{
+		"RemoteAddr":  "192.168.1.1",
+		"Status":      404,
+		"StatusClass": "4xx",
+		"Hostname":    "web-1",
+		"Upstream":    "",
+		"Upstream2":   "",
+	}
+	for col, v := range want {
+		if row[col] != v {
+			t.Errorf("%s: got %#v, want %#v", col, row[col], v)
+		}
+	}
+	if len(missing) != 1 || missing[0] != "upstream_response_time" {
+		t.Errorf("got missing %v, want [upstream_response_time]", missing)
+	}
+}
